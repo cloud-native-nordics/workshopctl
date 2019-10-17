@@ -6,9 +6,7 @@
 ingress:
   enabled: true
   paths:
-  - /dashboard
-  annotations:
-    traefik.ingress.kubernetes.io/rewrite-target: "/"
+  - /
   # The values.js pipe will fill in the following automatically:
   # hosts:
-  # - cluster-{{ .Workshopctl.ClusterNumber }}.{{ .Workshopctl.Domain }}
+  # - dashboard.cluster-{{ .Workshopctl.ClusterNumber }}.{{ .Workshopctl.Domain }}

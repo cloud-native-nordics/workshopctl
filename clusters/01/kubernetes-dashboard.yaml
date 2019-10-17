@@ -189,8 +189,6 @@ spec:
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  annotations:
-    traefik.ingress.kubernetes.io/rewrite-target: /
   labels:
     app: kubernetes-dashboard
     chart: kubernetes-dashboard-1.10.0
@@ -200,10 +198,10 @@ metadata:
   namespace: kube-system
 spec:
   rules:
-  - host: cluster-01.workshopctl.kubernetesfinland.com
+  - host: dashboard.cluster-01.workshopctl.kubernetesfinland.com
     http:
       paths:
       - backend:
           serviceName: workshopctl-kubernetes-dashboard
           servicePort: 443
-        path: /dashboard
+        path: /
