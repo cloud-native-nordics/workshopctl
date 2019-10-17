@@ -1,0 +1,8 @@
+{
+    "name": "workshopctl",
+    "version": "0.1.0",
+    "dependencies": {
+        "@jkcfg/std": "^0.3.0",
+        "@jkcfg/kubernetes": "^0.5.1"
+    }
+}

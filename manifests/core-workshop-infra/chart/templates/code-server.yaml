@@ -1,0 +1,114 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: workshopctl
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: code-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: code-server
+  namespace: workshopctl
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: code-server
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: code-server
+  name: code-server
+data:
+  config: |-
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        server: https://kubernetes.default.svc.cluster.local
+      name: default
+    contexts:
+    - context:
+        cluster: default
+        namespace: default
+        user: default
+      name: default
+    current-context: default
+    users:
+    - name: default
+      user:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: code-server
+  name: code-server
+spec:
+  selector:
+    matchLabels:
+      app: code-server
+  template:
+    metadata:
+      labels:
+        app: code-server
+    spec:
+      serviceAccountName: code-server
+      containers:
+      - image: codercom/code-server:v2
+        imagePullPolicy: Always
+        name: code-server
+        ports:
+        - name: http
+          containerPort: 8080
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /root/.kube
+        - name: docker
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: kubeconfig
+        configMap:
+          name: code-server
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: code-server
+spec:
+  selector:
+    app: code-server
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: code-server
+  annotations:
+    ingress.kubernetes.io/auth-type: basic
+    ingress.kubernetes.io/auth-secret: traefik-basic-auth
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+          serviceName: code-server
+          servicePort: 80
+    host: cluster-{{ .Values.workshopctl.clusterNumber }}.{{ .Values.workshopctl.domain }}
