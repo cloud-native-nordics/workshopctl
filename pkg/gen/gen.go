@@ -144,8 +144,17 @@ func GenerateChart(cd *ChartData, i uint16, cfg *config.Config) error {
 	for k, v := range valuesArgMap {
 		valuesArgStr += fmt.Sprintf("-p=%s=%s ", k, v)
 	}
+	nsArg := ""
+	nsFile := filepath.Join(cd.ManifestDir, "namespace")
+	if util.FileExists(nsFile) {
+		b, err := ioutil.ReadFile(nsFile)
+		if err != nil {
+			return err
+		}
+		nsArg = fmt.Sprintf("-n %s", string(b))
+	}
 
-	cmd := fmt.Sprintf("cd %s && jk run %s %s | helm template workshopctl chart -f - | jk run %s", cd.CacheDir, valuesArgStr, valuesJSPath, pipeJSPath)
+	cmd := fmt.Sprintf("cd %s && jk run %s %s | helm template %s workshopctl chart -f - | jk run %s", cd.CacheDir, valuesArgStr, valuesJSPath, nsArg, pipeJSPath)
 	content, err := util.ExecuteCommand("/bin/bash", "-c", cmd)
 	if err != nil {
 		return err
