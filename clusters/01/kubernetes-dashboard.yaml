@@ -7,7 +7,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 type: Opaque
 ---
 apiVersion: v1
@@ -19,7 +19,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: Role
@@ -30,7 +30,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 rules:
 - apiGroups:
   - ""
@@ -92,7 +92,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -100,7 +100,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 ---
 apiVersion: v1
 kind: Service
@@ -111,7 +111,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 spec:
   ports:
   - name: https
@@ -131,7 +131,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 spec:
   replicas: 1
   selector:
@@ -197,7 +197,7 @@ metadata:
     heritage: Helm
     release: workshopctl
   name: workshopctl-kubernetes-dashboard
-  namespace: workshopctl
+  namespace: kube-system
 spec:
   rules:
   - host: cluster-01.workshopctl.kubernetesfinland.com

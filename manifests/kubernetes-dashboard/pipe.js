@@ -12,5 +12,5 @@ function withoutClusterServiceLabel(name) {
 const resourceName = "workshopctl-kubernetes-dashboard"
 kubePipeWithMutators([
     withoutClusterServiceLabel(resourceName),
-    withNamespace("workshopctl"),
+    withNamespace("kube-system"), // the dashboard is hardcoded to run in kube-system :(
 ])
