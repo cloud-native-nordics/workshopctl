@@ -1,5 +1,6 @@
 import * as std from '@jkcfg/std';
 import * as param from '@jkcfg/std/param';
+import * as k8s from '@jkcfg/kubernetes/api';
 
 export async function kubePipeWithMutators(mutators) {
     const resources = await(std.read('', { format: std.Format.YAMLStream }));
@@ -44,6 +45,7 @@ export async function valuesPipeForFunctions(mutators) {
 
 export function withNamespace(ns) {
     return kubeMutator(null, null, function (obj) {
+        if (!obj.metadata) obj.metadata = new k8s.meta.v1.ObjectMeta()
         obj.metadata.namespace = ns
         return obj
     })
