@@ -1,4 +1,4 @@
-import { valuesPipeForFunctions, valuesMutator, withNamespace } from "../../jkcfg/util"
+import { valuesPipeForFunctions, valuesMutator } from "../../jkcfg/util"
 
 function withClusterNumber() {
     return valuesMutator(function(values) {
@@ -10,5 +10,4 @@ function withClusterNumber() {
 
 valuesPipeForFunctions([
     withClusterNumber(),
-    withNamespace("workshopctl")
 ])
