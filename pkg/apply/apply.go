@@ -56,7 +56,8 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun b
 		fmt.Sprintf("--from-literal=PROVIDER_SERVICEACCOUNT=%s", clusterInfo.ServiceAccount),
 		fmt.Sprintf("--from-literal=GIT_REPO=%s", clusterInfo.GitRepo),
 		fmt.Sprintf("--from-literal=ROOT_DOMAIN=%s", clusterInfo.RootDomain),
-		fmt.Sprintf("--from-literal=CLUSTER_NUMBER=%d", clusterInfo.Index),
+		fmt.Sprintf("--from-literal=CLUSTER_NUMBER=%s", clusterInfo.Index),
+		fmt.Sprintf("--from-literal=VSCODE_PASSWORD=%s", clusterInfo.VSCodePassword),
 	}
 	if out, err := execKubectl(kubeconfigPath, args...); err != nil {
 		// Allow/Ignore the AlreadyExists error

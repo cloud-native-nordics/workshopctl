@@ -65,12 +65,22 @@ spec:
     spec:
       serviceAccountName: code-server
       containers:
-      - image: codercom/code-server:v2
+      - image: luxas/k8s-web-ide:v2.0.0
         imagePullPolicy: Always
         name: code-server
         ports:
         - name: http
           containerPort: 8080
+        env:
+        - name: GIT_REPO
+          value: https://github.com/luxas/workshopctl
+        - name: GIT_SUBPATH
+          value: tutorials
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: VSCODE_PASSWORD
         volumeMounts:
         - name: kubeconfig
           mountPath: /root/.kube

@@ -13,6 +13,7 @@ type Config struct {
 	GitRepo    string `json:"gitRepo"`
 	RootDir    string `json:"-"`
 
+	VSCodePassword string `json:"vsCodePassword"`
 	Provider       string `json:"provider"`
 	ServiceAccount string `json:"serviceAccount"`
 	CPUs           uint16 `json:"cpus"`
