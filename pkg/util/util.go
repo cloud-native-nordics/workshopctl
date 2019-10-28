@@ -69,6 +69,10 @@ func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
 		done, err = fn()
 		if err != nil {
 			errFn("an error occurred: %v. done: %t", err, done)
+			// if we're not "done" yet, set the err to nil so that PollImmediateInfinite doesn't exit
+			if !done {
+				err = nil
+			}
 		}
 		return
 	})
