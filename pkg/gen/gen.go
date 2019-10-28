@@ -125,7 +125,7 @@ func SetupChartCache(rootPath, chartName string) (*ChartData, error) {
 	return cd, nil
 }
 
-func GenerateChart(cd *ChartData, i uint16, cfg *config.Config) error {
+func GenerateChart(cd *ChartData, i config.ClusterNumber, cfg *config.Config) error {
 	pipeJSPath := pipeJS
 	if _, ok := cd.CopiedFiles[pipeJS]; !ok {
 		pipeJSPath = "../../jkcfg/default-pipe.js"
@@ -135,7 +135,7 @@ func GenerateChart(cd *ChartData, i uint16, cfg *config.Config) error {
 		valuesJSPath = "../../jkcfg/default-values.js"
 	}
 	valuesArgMap := map[string]string{
-		"cluster-number": fmt.Sprintf(`"%02d"`, i),
+		"cluster-number": fmt.Sprintf("%q", i), // pass this as a string to preserve the 0-padding
 		"domain":         cfg.Domain,
 		"git-repo":       cfg.GitRepo,
 		"provider":       cfg.Provider,
@@ -168,7 +168,7 @@ func GenerateChart(cd *ChartData, i uint16, cfg *config.Config) error {
 		return err
 	}
 
-	outputFile := filepath.Join(cfg.RootDir, "clusters", fmt.Sprintf("%02d", i), fmt.Sprintf("%s.yaml", cd.Name))
+	outputFile := filepath.Join(cfg.RootDir, "clusters", i.String(), fmt.Sprintf("%s.yaml", cd.Name))
 	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
 		return err
 	}
