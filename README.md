@@ -2,6 +2,9 @@
 
 A tool for running workshops easily in the cloud!
 
+**WARNING:** This tool is pre-alpha and under heavy development. Don't use it for anything
+very important quite yet! However, contributions are very welcome!
+
 ## Quick Start
 
 1. `workshopctl init` -- Give information about what cloud provider to use (and its token),
