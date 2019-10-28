@@ -125,7 +125,7 @@ func SetupChartCache(rootPath, chartName string) (*ChartData, error) {
 	return cd, nil
 }
 
-func GenerateChart(cd *ChartData, i config.ClusterNumber, cfg *config.Config) error {
+func GenerateChart(cd *ChartData, clusterInfo *config.ClusterInfo) error {
 	pipeJSPath := pipeJS
 	if _, ok := cd.CopiedFiles[pipeJS]; !ok {
 		pipeJSPath = "../../jkcfg/default-pipe.js"
@@ -135,10 +135,10 @@ func GenerateChart(cd *ChartData, i config.ClusterNumber, cfg *config.Config) er
 		valuesJSPath = "../../jkcfg/default-values.js"
 	}
 	valuesArgMap := map[string]string{
-		"cluster-number": fmt.Sprintf("%q", i), // pass this as a string to preserve the 0-padding
-		"domain":         cfg.Domain,
-		"git-repo":       cfg.GitRepo,
-		"provider":       cfg.Provider,
+		"cluster-number": fmt.Sprintf("%q", clusterInfo.Index), // pass this as a string to preserve the 0-padding
+		"domain":         clusterInfo.Domain,
+		"git-repo":       clusterInfo.GitRepo,
+		"provider":       clusterInfo.Provider,
 	}
 	valuesArgStr := ""
 	for k, v := range valuesArgMap {
@@ -168,7 +168,7 @@ func GenerateChart(cd *ChartData, i config.ClusterNumber, cfg *config.Config) er
 		return err
 	}
 
-	outputFile := filepath.Join(cfg.RootDir, "clusters", i.String(), fmt.Sprintf("%s.yaml", cd.Name))
+	outputFile := filepath.Join(clusterInfo.RootDir, "clusters", clusterInfo.Index.String(), fmt.Sprintf("%s.yaml", cd.Name))
 	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
 		return err
 	}

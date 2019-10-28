@@ -20,6 +20,24 @@ type Config struct {
 	NodeCount      uint16 `json:"nodeCount"`
 }
 
+type ClusterInfo struct {
+	*Config
+	Index  ClusterNumber
+	Logger *logrus.Entry
+}
+
+func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
+	return &ClusterInfo{cfg, i, logrus.WithField("cluster", i)}
+}
+
+func (c *ClusterInfo) KubeConfigPath() string {
+	return fmt.Sprintf("clusters/%s/kubeconfig.private.yaml", c.Index)
+}
+
+func (c *ClusterInfo) ClusterDir() string {
+	return fmt.Sprintf("clusters/%s", c.Index)
+}
+
 var _ fmt.Stringer = ClusterNumber(0)
 
 type ClusterNumber uint16
@@ -28,16 +46,16 @@ func (n ClusterNumber) String() string {
 	return fmt.Sprintf("%02d", n)
 }
 
-func ForCluster(n uint16, fn func(ClusterNumber, *logrus.Entry) error) error {
+func ForCluster(n uint16, cfg *Config, fn func(*ClusterInfo) error) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(int(n))
 	foundErr := false
 	for i := ClusterNumber(1); i <= ClusterNumber(n); i++ {
 		go func(j ClusterNumber) {
 			defer wg.Done()
-			entry := logrus.WithField("cluster", j)
-			if err := fn(j, entry); err != nil {
-				entry.Error(err)
+			clusterInfo := NewClusterInfo(cfg, j)
+			if err := fn(clusterInfo); err != nil {
+				clusterInfo.Logger.Error(err)
 				foundErr = true
 			}
 		}(i)

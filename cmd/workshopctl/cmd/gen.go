@@ -8,7 +8,6 @@ import (
 
 	"github.com/luxas/workshopctl/pkg/config"
 	"github.com/luxas/workshopctl/pkg/gen"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -60,11 +59,11 @@ func RunGen(cfg *config.Config) func(cmd *cobra.Command, args []string) {
 				charts = append(charts, chart)
 			}
 
-			return config.ForCluster(cfg.Clusters, func(i config.ClusterNumber, logger *logrus.Entry) error {
-				log.Infof("Cluster %s...", i)
+			return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
+				log.Infof("Cluster %s...", clusterInfo.Index)
 				for _, chart := range charts {
-					logger.Infof("  Generating chart %q...", chart.Name)
-					if err := gen.GenerateChart(chart, i, cfg); err != nil {
+					clusterInfo.Logger.Infof("  Generating chart %q...", chart.Name)
+					if err := gen.GenerateChart(chart, clusterInfo); err != nil {
 						return err
 					}
 				}
