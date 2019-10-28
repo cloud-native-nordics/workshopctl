@@ -27,7 +27,7 @@ type ClusterInfo struct {
 }
 
 func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
-	return &ClusterInfo{cfg, i, logrus.WithField("cluster", i)}
+	return &ClusterInfo{cfg, i, i.NewLogger()}
 }
 
 func (c *ClusterInfo) KubeConfigPath() string {
@@ -48,6 +48,10 @@ type ClusterNumber uint16
 
 func (n ClusterNumber) String() string {
 	return fmt.Sprintf("%02d", n)
+}
+
+func (n ClusterNumber) NewLogger() *logrus.Entry {
+	return logrus.WithField("cluster", n)
 }
 
 func ForCluster(n uint16, cfg *Config, fn func(*ClusterInfo) error) error {

@@ -2,13 +2,16 @@ package util
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/otiai10/copy"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func PathExists(path string) (bool, os.FileInfo) {
@@ -45,4 +48,35 @@ func ExecuteCommand(command string, args ...string) (string, error) {
 	}
 
 	return string(bytes.TrimSpace(out)), nil
+}
+
+func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
+	duration := 10 * time.Second
+	if d != nil {
+		duration = *d
+	}
+	if logger == nil {
+		logger = log.NewEntry(log.StandardLogger())
+	}
+	tryCount := 0
+	return wait.PollImmediateInfinite(duration, func() (done bool, err error) {
+		tryCount++
+		errFn := logger.Debugf
+		if tryCount%3 == 0 { // print info every third time
+			errFn = logger.Infof
+		}
+
+		done, err = fn()
+		if err != nil {
+			errFn("an error occurred: %v. done: %t", err, done)
+		}
+		return
+	})
+}
+
+func DebugObject(msg string, obj interface{}) {
+	if log.GetLevel() == log.DebugLevel {
+		b, _ := json.Marshal(obj)
+		log.Debugf("%s: %s", msg, string(b))
+	}
 }
