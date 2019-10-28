@@ -226,7 +226,17 @@ spec:
         app: code-server
     spec:
       containers:
-      - image: codercom/code-server:v2
+      - env:
+        - name: GIT_REPO
+          value: https://github.com/luxas/workshopctl
+        - name: GIT_SUBPATH
+          value: tutorials
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: VSCODE_PASSWORD
+              name: workshopctl
+        image: luxas/k8s-web-ide:v2.0.0
         imagePullPolicy: Always
         name: code-server
         ports:
