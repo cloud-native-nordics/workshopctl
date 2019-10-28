@@ -34,12 +34,12 @@ type DigitalOceanProvider struct {
 
 func chooseSize(s provider.NodeSize) string {
 	m := map[provider.NodeSize]string{
-		provider.NodeSize{CPUs: 1, RAM: 2}:  "s-1vcpu-2gb",
-		provider.NodeSize{CPUs: 1, RAM: 3}:  "s-1vcpu-3gb",
-		provider.NodeSize{CPUs: 2, RAM: 2}:  "s-2vcpu-2gb",
-		provider.NodeSize{CPUs: 2, RAM: 4}:  "s-2vcpu-4gb",
-		provider.NodeSize{CPUs: 4, RAM: 8}:  "s-4vcpu-8gb",
-		provider.NodeSize{CPUs: 6, RAM: 16}: "s-6vcpu-16gb",
+		{CPUs: 1, RAM: 2}:  "s-1vcpu-2gb",
+		{CPUs: 1, RAM: 3}:  "s-1vcpu-3gb",
+		{CPUs: 2, RAM: 2}:  "s-2vcpu-2gb",
+		{CPUs: 2, RAM: 4}:  "s-2vcpu-4gb",
+		{CPUs: 4, RAM: 8}:  "s-4vcpu-8gb",
+		{CPUs: 6, RAM: 16}: "s-6vcpu-16gb",
 	}
 	if str, ok := m[s]; ok {
 		return str
