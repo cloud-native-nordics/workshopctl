@@ -41,13 +41,14 @@ func Copy(src string, dst string) error {
 func ExecuteCommand(command string, args ...string) (string, error) {
 	log.Debugf(`Executing "%s %s"`, command, strings.Join(args, " "))
 	cmd := exec.Command(command, args...)
-	out, err := cmd.CombinedOutput()
+	outbytes, err := cmd.CombinedOutput()
+	out := string(bytes.TrimSpace(outbytes))
 	if err != nil {
 		log.Debugf(`Returned error: %v and output: %q`, err, out)
-		return "", fmt.Errorf("command %q exited with %q: %v", cmd.Args, out, err)
+		return out, fmt.Errorf("command %q exited with %q: %v", cmd.Args, out, err)
 	}
 
-	return string(bytes.TrimSpace(out)), nil
+	return out, nil
 }
 
 func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
