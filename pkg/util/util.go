@@ -52,7 +52,10 @@ func ExecuteCommand(command string, args ...string) (string, error) {
 }
 
 func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
-	duration := 10 * time.Second
+	logger.Traceln("Poll function started")
+	defer logger.Traceln("Poll function quit")
+
+	duration := 15 * time.Second
 	if d != nil {
 		duration = *d
 	}
@@ -60,28 +63,33 @@ func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
 		logger = log.NewEntry(log.StandardLogger())
 	}
 	tryCount := 0
-	return wait.PollImmediateInfinite(duration, func() (done bool, err error) {
+	return wait.PollImmediate(duration, 5*time.Minute, func() (bool, error) {
 		tryCount++
 		errFn := logger.Debugf
 		if tryCount%3 == 0 { // print info every third time
 			errFn = logger.Infof
 		}
 
-		done, err = fn()
+		done, err := fn()
+		logger.Tracef("Poll function (round %d) returned %t %v", tryCount, done, err)
 		if err != nil {
-			errFn("an error occurred: %v. done: %t", err, done)
 			// if we're not "done" yet, set the err to nil so that PollImmediateInfinite doesn't exit
 			if !done {
+				errFn("Polling continues due to: %v", err)
 				err = nil
 			}
 		}
-		return
+		return done, err
 	})
 }
 
 func DebugObject(msg string, obj interface{}) {
-	if log.GetLevel() == log.DebugLevel {
-		b, _ := json.Marshal(obj)
+	if log.IsLevelEnabled(log.DebugLevel) {
+		b, err := json.Marshal(obj)
+		if err != nil {
+			log.Errorf("DebugObject failed with %v", err)
+			return
+		}
 		log.Debugf("%s: %s", msg, string(b))
 	}
 }

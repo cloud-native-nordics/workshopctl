@@ -18,13 +18,16 @@ var providers = map[string]provider.ProviderFunc{
 func Apply(cfg *config.Config, dryrun bool) error {
 	pFunc, ok := providers[cfg.Provider]
 	if !ok {
-		return fmt.Errorf("provider %s not supported!", cfg.Provider)
+		return fmt.Errorf("Provider %s is not supported!", cfg.Provider)
 	}
-	if len(cfg.ServiceAccount) == 0 {
-		return fmt.Errorf("a serviceaccount is required")
+	if len(cfg.ServiceAccountStr) == 0 {
+		return fmt.Errorf("A ServiceAccount token for the provider is required")
 	}
-	sa := provider.NewServiceAccount(cfg.ServiceAccount)
-	p := pFunc(sa, dryrun)
+	cfg.ServiceAccount = config.NewServiceAccount(cfg.ServiceAccountStr)
+	if _, err := cfg.ServiceAccount.Get(); err != nil {
+		return err
+	}
+	p := pFunc(cfg.ServiceAccount, dryrun)
 
 	return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
 		return ApplyCluster(clusterInfo, p, dryrun)
@@ -45,6 +48,11 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun b
 			return err
 		}
 	}
+
+	// Read the token; it could be from a file, too
+	// Ignore the error here safely as it's been verified already
+	token, _ := clusterInfo.ServiceAccount.Get()
+
 	args := []string{
 		"-n",
 		"workshopctl",
@@ -53,7 +61,7 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun b
 		"generic",
 		"workshopctl",
 		fmt.Sprintf("--from-literal=PROVIDER=%s", clusterInfo.Provider),
-		fmt.Sprintf("--from-literal=PROVIDER_SERVICEACCOUNT=%s", clusterInfo.ServiceAccount),
+		fmt.Sprintf("--from-literal=PROVIDER_SERVICEACCOUNT=%s", token),
 		fmt.Sprintf("--from-literal=GIT_REPO=%s", clusterInfo.GitRepo),
 		fmt.Sprintf("--from-literal=ROOT_DOMAIN=%s", clusterInfo.RootDomain),
 		fmt.Sprintf("--from-literal=CLUSTER_NUMBER=%s", clusterInfo.Index),

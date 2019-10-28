@@ -42,7 +42,7 @@ func (w *Waiter) WaitForAll() error {
 }
 
 func (w *Waiter) WaitForDeployments() error {
-	_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all")
+	_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=5m")
 	return err
 }
 

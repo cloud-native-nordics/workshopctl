@@ -32,7 +32,8 @@ func addApplyFlags(fs *pflag.FlagSet, cfg *config.Config) {
 	fs.Uint16Var(&cfg.RAM, "node-ram", 2, "How much RAM to use per-node")
 	fs.Uint16Var(&cfg.NodeCount, "node-count", 1, "How many nodes per cluster")
 	fs.StringVar(&cfg.VSCodePassword, "vscode-password", "kubernetesrocks", "What the password for Visual Studio Code should be")
-	fs.StringVar(&cfg.ServiceAccount, "service-account", "", "What serviceaccount/token to use. Can be a string or a file")
+	// TODO: This should be a custom flag
+	fs.StringVar(&cfg.ServiceAccountStr, "service-account", "", "What serviceaccount/token to use. Can be a string or a file")
 }
 
 func RunApply(cfg *config.Config) func(cmd *cobra.Command, args []string) {

@@ -16,7 +16,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func NewDigitalOceanProvider(sa *provider.ServiceAccount, dryRun bool) provider.Provider {
+func NewDigitalOceanProvider(sa *config.ServiceAccount, dryRun bool) provider.Provider {
 	p := &DigitalOceanProvider{
 		sa:     sa,
 		dryRun: dryRun,
@@ -27,7 +27,7 @@ func NewDigitalOceanProvider(sa *provider.ServiceAccount, dryRun bool) provider.
 }
 
 type DigitalOceanProvider struct {
-	sa     *provider.ServiceAccount
+	sa     *config.ServiceAccount
 	c      *godo.Client
 	dryRun bool
 }
@@ -85,7 +85,7 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 		AutoUpgrade: false,
 	}
 
-	if do.dryRun || log.GetLevel() == log.DebugLevel {
+	if do.dryRun || log.IsLevelEnabled(log.DebugLevel) {
 		b, _ := json.Marshal(req)
 		if do.dryRun {
 			log.Infof("Would send this request to DO: %s", string(b))
@@ -93,45 +93,60 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 		}
 		log.Debugf("Would send this request to DO: %s", string(b))
 	}
-
-	doCluster, _, err := do.c.Kubernetes.Create(context.Background(), req)
+	// TODO: Rate limiting
+	clusters, _, err := do.c.Kubernetes.List(context.Background(), &godo.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	cluster.Status.ID = doCluster.ID
+	for _, c := range clusters {
+		if c.Name == cluster.Spec.Name {
+			logger.Infof("Found existing cluster with name %q and ID %q", c.Name, c.ID)
+			cluster.Status.ID = c.ID
+			break
+		}
+	}
+
+	if len(cluster.Status.ID) == 0 {
+		logger.Infof("Creating new cluster with name %s", cluster.Spec.Name)
+		doCluster, _, err := do.c.Kubernetes.Create(context.Background(), req)
+		if err != nil {
+			return nil, err
+		}
+		cluster.Status.ID = doCluster.ID
+	}
 
 	err = util.Poll(nil, logger, func() (bool, error) {
 		kcluster, _, err := do.c.Kubernetes.Get(context.Background(), cluster.Status.ID)
 		if err != nil {
 			return false, fmt.Errorf("getting a kubernetes cluster failed: %v", err)
 		}
-		util.DebugObject("Got a response from DO", cluster.Status)
+		util.DebugObject("Got Kubernetes cluster response from DO", kcluster)
 
 		if kcluster.Status.State == godo.KubernetesClusterStatusRunning {
-			log.Infof("Awesome! We're done! message: %q", kcluster.Status.Message)
+			logger.Infof("Awesome, the cluster is Ready! Endpoints: %s %s", kcluster.Endpoint, kcluster.IPv4)
 
-			u, err := url.Parse(doCluster.Endpoint)
+			u, err := url.Parse(kcluster.Endpoint)
 			if err != nil {
 				return true, err // fatal; exit
 			}
 			cluster.Status.EndpointURL = u
-			cluster.Status.EndpointIP = net.ParseIP(doCluster.IPv4)
+			cluster.Status.EndpointIP = net.ParseIP(kcluster.IPv4)
 			now := time.Now().UTC()
 			cluster.Status.ProvisionDone = &now
 
 			return true, nil
 		}
 		if kcluster.Status.State == godo.KubernetesClusterStatusProvisioning {
-			return false, fmt.Errorf("cluster still provisioning! message: %q", kcluster.Status.Message)
+			return false, fmt.Errorf("Cluster is still provisioning!")
 		}
 
-		return false, fmt.Errorf("unknown state %q! message: %q", kcluster.Status.State, kcluster.Status.Message)
+		return false, fmt.Errorf("Unknown state %q! Message: %q", kcluster.Status.State, kcluster.Status.Message)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Getting KubeConfig information...")
+	log.Infof("Downloading KubeConfig...")
 	cc, _, err := do.c.Kubernetes.GetKubeConfig(context.Background(), cluster.Status.ID)
 	if err != nil {
 		return nil, err
