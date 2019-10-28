@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: podinfo
+  namespace: demo
+data:
+  IS_KUBERNETES_FINLAND: "true"
+  my-config-file.json: |
+    { "amazing": true }

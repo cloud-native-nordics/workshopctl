@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: podinfo
+  name: podinfo
+  namespace: demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: podinfo
+  template:
+    metadata:
+      labels:
+        app: podinfo
+    spec:
+      containers:
+      - image: stefanprodan/podinfo:1.5.0
+        name: podinfo
+        command:
+        - ./podinfo
+        - --config-path=/configmap
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 9898
+          initialDelaySeconds: 1
+          periodSeconds: 5
+          failureThreshold: 1
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9898
+          initialDelaySeconds: 1
+          periodSeconds: 10
+          failureThreshold: 2
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "10m"
+        env:
+        - name: IS_KUBERNETES_FINLAND
+          valueFrom:
+            configMapKeyRef:
+              # The ConfigMap containing the value you want to assign to IS_KUBERNETES_FINLAND
+              name: podinfo
+              # Specify the key associated with the value
+              key: IS_KUBERNETES_FINLAND
+        - name: SECRET_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              # The ConfigMap containing the value you want to assign to SECRET_PASSWORD
+              name: podinfo
+              # Specify the key associated with the value
+              key: SECRET_PASSWORD
+        volumeMounts:
+        - name: configmap-projection
+          mountPath: /configmap
+        - name: secret-projection
+          mountPath: /secret
+      volumes:
+      - name: configmap-projection
+        configMap:
+          # Provide the name of the ConfigMap containing the files you want
+          # to add to the container
+          name: podinfo
+      - name: secret-projection
+        secret:
+          # Provide the name of the Secret containing the files you want
+          # to add to the container
+          secretName: podinfo
+

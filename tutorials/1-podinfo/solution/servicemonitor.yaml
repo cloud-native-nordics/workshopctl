@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: podinfo
+    release: k8sfin
+  name: podinfo
+  namespace: demo
+spec:
+  endpoints:
+  - port: 80-9898
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - demo
+  selector:
+    matchLabels:
+      app: podinfo
