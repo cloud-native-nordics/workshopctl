@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"io"
 
+	"github.com/luxas/workshopctl/pkg/apply"
 	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/provider"
-	"github.com/luxas/workshopctl/pkg/provider/digitalocean"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -39,29 +37,7 @@ func addApplyFlags(fs *pflag.FlagSet, cfg *config.Config) {
 func RunApply(cfg *config.Config) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
 		err := func() error {
-			if cfg.Provider != "digitalocean" {
-				return fmt.Errorf("no other providers but DO supported at the moment")
-			}
-			if len(cfg.ServiceAccount) == 0 {
-				return fmt.Errorf("a serviceaccount is required")
-			}
-			sa := provider.NewServiceAccount(cfg.ServiceAccount)
-			p := digitalocean.NewDigitalOceanProvider(sa, dryrun)
-			i := uint16(1)
-			cluster, err := p.CreateCluster(i, provider.ClusterSpec{
-				Name: fmt.Sprintf("workshopctl-cluster-%d", i),
-				NodeSize: provider.NodeSize{
-					CPUs: cfg.CPUs,
-					RAM:  cfg.RAM,
-				},
-				NodeCount: cfg.Clusters,
-				Version:   "latest",
-			})
-			if err != nil {
-				return err
-			}
-			fmt.Println(*cluster)
-			return nil
+			return apply.Apply(cfg, dryrun)
 		}()
 		if err != nil {
 			log.Fatal(err)
