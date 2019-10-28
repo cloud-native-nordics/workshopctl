@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/luxas/workshopctl/pkg/config"
 	"github.com/luxas/workshopctl/pkg/util"
 	"golang.org/x/oauth2"
 )
@@ -61,14 +62,18 @@ type ClusterSpec struct {
 }
 
 type ClusterStatus struct {
-	ID             string
-	ProvisionStart *time.Time
-	ProvisionDone  *time.Time
-	EndpointURL    *url.URL
-	EndpointIP     net.IP
+	ID              string
+	Index           config.ClusterNumber
+	ProvisionStart  *time.Time
+	ProvisionDone   *time.Time
+	EndpointURL     *url.URL
+	EndpointIP      net.IP
+	KubeconfigBytes []byte
 }
+
+type ProviderFunc func(*ServiceAccount, bool) Provider
 
 type Provider interface {
 	// CreateCluster creates a cluster. This call is _blocking_ until the cluster is properly provisioned
-	CreateCluster(index uint16, c ClusterSpec) (*Cluster, error)
+	CreateCluster(index config.ClusterNumber, c ClusterSpec) (*Cluster, error)
 }

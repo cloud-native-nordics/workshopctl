@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/digitalocean/godo"
+	"github.com/luxas/workshopctl/pkg/config"
 	"github.com/luxas/workshopctl/pkg/provider"
+	"github.com/luxas/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
@@ -46,16 +48,19 @@ func chooseSize(s provider.NodeSize) string {
 	return "s-1vcpu-2gb"
 }
 
-func (do *DigitalOceanProvider) CreateCluster(index uint16, c provider.ClusterSpec) (*provider.Cluster, error) {
+func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider.ClusterSpec) (*provider.Cluster, error) {
+	logger := i.NewLogger()
+
 	start := time.Now().UTC()
 	cluster := &provider.Cluster{
 		Spec: c,
 		Status: provider.ClusterStatus{
 			ProvisionStart: &start,
+			Index:          i,
 		},
 	}
 
-	nodePoolName := fmt.Sprintf("workshopctl-nodepool-%d", index)
+	nodePoolName := fmt.Sprintf("workshopctl-nodepool-%s", i)
 	nodePool := []*godo.KubernetesNodePoolCreateRequest{
 		{
 			Name:      nodePoolName,
@@ -84,7 +89,7 @@ func (do *DigitalOceanProvider) CreateCluster(index uint16, c provider.ClusterSp
 		b, _ := json.Marshal(req)
 		if do.dryRun {
 			log.Infof("Would send this request to DO: %s", string(b))
-			return nil, nil
+			return cluster, nil
 		}
 		log.Debugf("Would send this request to DO: %s", string(b))
 	}
@@ -94,36 +99,44 @@ func (do *DigitalOceanProvider) CreateCluster(index uint16, c provider.ClusterSp
 		return nil, err
 	}
 	cluster.Status.ID = doCluster.ID
-	u, err := url.Parse(doCluster.Endpoint)
+
+	err = util.Poll(nil, logger, func() (bool, error) {
+		kcluster, _, err := do.c.Kubernetes.Get(context.Background(), cluster.Status.ID)
+		if err != nil {
+			return false, fmt.Errorf("getting a kubernetes cluster failed: %v", err)
+		}
+		util.DebugObject("Got a response from DO", cluster.Status)
+
+		if kcluster.Status.State == godo.KubernetesClusterStatusRunning {
+			log.Infof("Awesome! We're done! message: %q", kcluster.Status.Message)
+
+			u, err := url.Parse(doCluster.Endpoint)
+			if err != nil {
+				return true, err // fatal; exit
+			}
+			cluster.Status.EndpointURL = u
+			cluster.Status.EndpointIP = net.ParseIP(doCluster.IPv4)
+			now := time.Now().UTC()
+			cluster.Status.ProvisionDone = &now
+
+			return true, nil
+		}
+		if kcluster.Status.State == godo.KubernetesClusterStatusProvisioning {
+			return false, fmt.Errorf("cluster still provisioning! message: %q", kcluster.Status.Message)
+		}
+
+		return false, fmt.Errorf("unknown state %q! message: %q", kcluster.Status.State, kcluster.Status.Message)
+	})
 	if err != nil {
 		return nil, err
 	}
-	cluster.Status.EndpointURL = u
-	cluster.Status.EndpointIP = net.ParseIP(doCluster.IPv4)
-	if log.GetLevel() == log.DebugLevel {
-		b, _ := json.Marshal(cluster.Status)
-		log.Debugf("Got a response from DO: %s", string(b))
-	}
 
-	for {
-		time.Sleep(10 * time.Second)
-		kcluster, _, err := do.c.Kubernetes.Get(context.Background(), cluster.Status.ID)
-		if err != nil {
-			log.Errorf("getting a kubernetes cluster failed: %v", err)
-			continue
-		}
-		if kcluster.Status.State == godo.KubernetesClusterStatusRunning {
-			log.Infof("Awesome! We're done! message: %q", kcluster.Status.Message)
-			break
-		}
-		switch kcluster.Status.State {
-		case godo.KubernetesClusterStatusProvisioning:
-			log.Infof("cluster still provisioning! message: %q", kcluster.Status.Message)
-			continue
-		default:
-			log.Warnf("unknown state %q! message: %q", kcluster.Status.State, kcluster.Status.Message)
-		}
+	log.Infof("Getting KubeConfig information...")
+	cc, _, err := do.c.Kubernetes.GetKubeConfig(context.Background(), cluster.Status.ID)
+	if err != nil {
+		return nil, err
 	}
+	cluster.Status.KubeconfigBytes = cc.KubeconfigYAML
 
 	return cluster, nil
 }
