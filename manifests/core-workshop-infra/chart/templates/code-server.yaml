@@ -74,7 +74,7 @@ spec:
         env:
         - name: GIT_REPO
           value: https://github.com/luxas/workshopctl
-        - name: GIT_SUBPATH
+        - name: GIT_SUBDIR
           value: tutorials
         - name: PASSWORD
           valueFrom:
