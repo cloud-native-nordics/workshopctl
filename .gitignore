@@ -3,5 +3,5 @@ node_modules/*
 bin
 vendor
 package-lock.json
-kubeconfig.private.yaml
+.kubeconfig
 *.solution

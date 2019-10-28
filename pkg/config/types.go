@@ -32,7 +32,7 @@ func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
 }
 
 func (c *ClusterInfo) KubeConfigPath() string {
-	return fmt.Sprintf("clusters/%s/kubeconfig.private.yaml", c.Index)
+	return fmt.Sprintf("clusters/%s/.kubeconfig", c.Index)
 }
 
 func (c *ClusterInfo) ClusterDir() string {
