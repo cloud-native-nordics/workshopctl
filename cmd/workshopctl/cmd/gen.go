@@ -60,9 +60,8 @@ func RunGen(cfg *config.Config) func(cmd *cobra.Command, args []string) {
 			}
 
 			return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
-				log.Infof("Cluster %s...", clusterInfo.Index)
 				for _, chart := range charts {
-					clusterInfo.Logger.Infof("  Generating chart %q...", chart.Name)
+					clusterInfo.Logger.Infof("Generating chart %q...", chart.Name)
 					if err := gen.GenerateChart(chart, clusterInfo); err != nil {
 						return err
 					}
