@@ -2,6 +2,17 @@ import * as std from '@jkcfg/std';
 import * as param from '@jkcfg/std/param';
 import * as k8s from '@jkcfg/kubernetes/api';
 
+const clusterNumber = param.String("cluster-number", "01");
+const domain = param.String("domain", "kubernetesfinland.com");
+const gitRepo = param.String("git-repo", "https://github.com/luxas/workshopctl");
+const provider = param.String("provider", "digitalocean");
+const workshopctl = {
+    clusterNumber,
+    domain,
+    gitRepo,
+    provider,
+}
+
 export async function kubePipeWithMutators(mutators) {
     const resources = await(std.read('', { format: std.Format.YAMLStream }));
     resources.forEach((obj) => {
@@ -10,7 +21,7 @@ export async function kubePipeWithMutators(mutators) {
             var meta = m.resourceFunc ? new m.resourceFunc() : null
             if (!meta || (meta.apiVersion == obj.apiVersion && meta.kind == obj.kind)) {
                 if (!m.name || (m.name && m.name == obj.metadata.name)) {
-                    obj = m.func(obj)
+                    obj = m.func(obj, workshopctl)
                 }
             }
         })
@@ -19,16 +30,6 @@ export async function kubePipeWithMutators(mutators) {
 }
 
 export async function valuesPipeForFunctions(mutators) {
-    const clusterNumber = param.String("cluster-number", "01");
-    const domain = param.String("domain", "kubernetesfinland.com");
-    const gitRepo = param.String("git-repo", "https://github.com/luxas/workshopctl");
-    const provider = param.String("provider", "digitalocean");
-    const workshopctl = {
-        clusterNumber,
-        domain,
-        gitRepo,
-        provider,
-    }
     std.read('values.yaml', { format: std.Format.YAMLStream }).then((valuesList) => {
         var values = valuesList[0] ? valuesList[0] : {};
         // Set the pre-made values

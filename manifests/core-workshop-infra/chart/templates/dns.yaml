@@ -63,3 +63,9 @@ spec:
         - --policy=upsert-only # would prevent ExternalDNS from deleting any records, omit to enable full synchronization
         - --registry=txt
         - --txt-owner-id=workshopctl
+        env:
+        - name: PROVIDER_SERVICEACCOUNT
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: PROVIDER_SERVICEACCOUNT

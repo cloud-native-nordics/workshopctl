@@ -154,7 +154,15 @@ func GenerateChart(cd *ChartData, i uint16, cfg *config.Config) error {
 		nsArg = fmt.Sprintf("-n %s", string(b))
 	}
 
-	cmd := fmt.Sprintf("cd %s && jk run %s %s | helm template %s workshopctl chart -f - | jk run %s", cd.CacheDir, valuesArgStr, valuesJSPath, nsArg, pipeJSPath)
+	cmd := fmt.Sprintf(
+		"cd %s && jk run %s %s | helm template %s workshopctl chart -f - | jk run %s %s",
+		cd.CacheDir,
+		valuesArgStr,
+		valuesJSPath,
+		nsArg,
+		valuesArgStr,
+		pipeJSPath,
+	)
 	content, err := util.ExecuteCommand("/bin/bash", "-c", cmd)
 	if err != nil {
 		return err

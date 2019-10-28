@@ -2,16 +2,17 @@ import * as k8s from '@jkcfg/kubernetes/api';
 import { kubeMutator, kubePipeWithMutators, withNamespace } from "../../jkcfg/util"
 
 function withDOTokenEnvVar() {
-    return kubeMutator(k8s.apps.v1.Deployment, "external-dns", function (obj) {
+    return kubeMutator(k8s.apps.v1.Deployment, "external-dns", function (obj, workshopctl) {
         var dep = new k8s.apps.v1.Deployment(); dep = obj
-        var env = new k8s.core.v1.EnvVar()
-        env.name = "DO_TOKEN"
-        env.valueFrom = new k8s.core.v1.EnvVarSource()
-        env.valueFrom.secretKeyRef = new k8s.core.v1.SecretKeySelector()
-        env.valueFrom.secretKeyRef.name = "external-dns"
-        env.valueFrom.secretKeyRef.key = "DO_TOKEN"
-        if (!dep.spec.template.spec.containers[0].env) dep.spec.template.spec.containers[0].env = []
-        dep.spec.template.spec.containers[0].env.push(env)
+        // This code transforms the environment variable name the serviceaccount token is exposed as
+        // e.g. external-dns expects the variable to be named DO_TOKEN when the provider is digitalocean
+        dep.spec.template.spec.containers[0].env.forEach((env) => {
+            if (env.name == "PROVIDER_SERVICEACCOUNT") {
+                if (workshopctl.provider == "digitalocean") {
+                    env.name = "DO_TOKEN"
+                } // support for more providers can be added here
+            }
+        })
         return dep;
     })
 }

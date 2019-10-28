@@ -292,8 +292,8 @@ spec:
         - name: DO_TOKEN
           valueFrom:
             secretKeyRef:
-              key: DO_TOKEN
-              name: external-dns
+              key: PROVIDER_SERVICEACCOUNT
+              name: workshopctl
         image: registry.opensource.zalan.do/teapot/external-dns:v0.5.17
         name: external-dns
       serviceAccountName: external-dns
