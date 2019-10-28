@@ -31,7 +31,7 @@ func addApplyFlags(fs *pflag.FlagSet, cfg *config.Config) {
 	fs.Uint16Var(&cfg.CPUs, "node-cpus", 2, "How much CPUs to use per-node")
 	fs.Uint16Var(&cfg.RAM, "node-ram", 2, "How much RAM to use per-node")
 	fs.Uint16Var(&cfg.NodeCount, "node-count", 1, "How many nodes per cluster")
-	fs.StringVar(&cfg.ServiceAccount, "vscode-password", "kubernetesrocks", "What the password for Visual Studio Code should be")
+	fs.StringVar(&cfg.VSCodePassword, "vscode-password", "kubernetesrocks", "What the password for Visual Studio Code should be")
 	fs.StringVar(&cfg.ServiceAccount, "service-account", "", "What serviceaccount/token to use. Can be a string or a file")
 }
 
