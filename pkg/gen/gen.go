@@ -144,22 +144,22 @@ func GenerateChart(cd *ChartData, clusterInfo *config.ClusterInfo) error {
 	for k, v := range valuesArgMap {
 		valuesArgStr += fmt.Sprintf("-p=%s=%s ", k, v)
 	}
-	nsArg := ""
+	namespace := "default"
 	nsFile := filepath.Join(cd.ManifestDir, "namespace")
 	if util.FileExists(nsFile) {
 		b, err := ioutil.ReadFile(nsFile)
 		if err != nil {
 			return err
 		}
-		nsArg = fmt.Sprintf("-n %s", string(b))
+		namespace = string(b)
 	}
 
 	cmd := fmt.Sprintf(
-		"cd %s && jk run %s %s | helm template %s workshopctl chart -f - | jk run %s %s",
+		"cd %s && jk run %s %s | helm template -n %s workshopctl chart -f - | jk run %s %s",
 		cd.CacheDir,
 		valuesArgStr,
 		valuesJSPath,
-		nsArg,
+		namespace,
 		valuesArgStr,
 		pipeJSPath,
 	)
