@@ -111,4 +111,4 @@ spec:
         backend:
           serviceName: code-server
           servicePort: 80
-    host: cluster-{{ .Values.workshopctl.clusterNumber }}.{{ .Values.workshopctl.domain }}
+    host: {{ .Values.workshopctl.domain }}

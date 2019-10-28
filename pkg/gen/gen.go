@@ -136,7 +136,7 @@ func GenerateChart(cd *ChartData, clusterInfo *config.ClusterInfo) error {
 	}
 	valuesArgMap := map[string]string{
 		"cluster-number": fmt.Sprintf("%q", clusterInfo.Index), // pass this as a string to preserve the 0-padding
-		"domain":         clusterInfo.Domain,
+		"root-domain":    clusterInfo.RootDomain,
 		"git-repo":       clusterInfo.GitRepo,
 		"provider":       clusterInfo.Provider,
 	}

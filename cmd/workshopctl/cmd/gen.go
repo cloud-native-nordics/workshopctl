@@ -29,7 +29,7 @@ func NewGenCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 func addGenFlags(fs *pflag.FlagSet, cfg *config.Config) {
 	fs.StringVar(&cfg.Provider, "provider", "digitalocean", "What provider to use")
 	fs.Uint16VarP(&cfg.Clusters, "clusters", "c", 1, "How many clusters to create")
-	fs.StringVarP(&cfg.Domain, "domain", "d", "workshopctl.kubernetesfinland.com", "What domain to use")
+	fs.StringVarP(&cfg.RootDomain, "root-domain", "d", "workshopctl.kubernetesfinland.com", "What domain to use")
 	fs.StringVarP(&cfg.GitRepo, "git-repo", "r", "https://github.com/luxas/workshopctl", "What git repo to use")
 	fs.StringVar(&cfg.RootDir, "root-dir", ".", "Where the workshopctl directory is")
 }

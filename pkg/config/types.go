@@ -8,10 +8,10 @@ import (
 )
 
 type Config struct {
-	Domain   string `json:"domain"`
-	Clusters uint16 `json:"clusters"`
-	GitRepo  string `json:"gitRepo"`
-	RootDir  string `json:"-"`
+	RootDomain string `json:"rootDomain"`
+	Clusters   uint16 `json:"clusters"`
+	GitRepo    string `json:"gitRepo"`
+	RootDir    string `json:"-"`
 
 	Provider       string `json:"provider"`
 	ServiceAccount string `json:"serviceAccount"`
@@ -36,6 +36,10 @@ func (c *ClusterInfo) KubeConfigPath() string {
 
 func (c *ClusterInfo) ClusterDir() string {
 	return fmt.Sprintf("clusters/%s", c.Index)
+}
+
+func (c *ClusterInfo) Domain() string {
+	return fmt.Sprintf("cluster-%s.%s", c.Index, c.RootDomain)
 }
 
 var _ fmt.Stringer = ClusterNumber(0)

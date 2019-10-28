@@ -3,14 +3,16 @@ import * as param from '@jkcfg/std/param';
 import * as k8s from '@jkcfg/kubernetes/api';
 
 const clusterNumber = param.String("cluster-number", "01");
-const domain = param.String("domain", "kubernetesfinland.com");
+const rootDomain = param.String("root-domain", "kubernetesfinland.com");
 const gitRepo = param.String("git-repo", "https://github.com/luxas/workshopctl");
 const provider = param.String("provider", "digitalocean");
+const domain = "cluster-" + clusterNumber + "." + rootDomain
 const workshopctl = {
     clusterNumber,
-    domain,
+    rootDomain,
     gitRepo,
     provider,
+    domain,
 }
 
 export async function kubePipeWithMutators(mutators) {
