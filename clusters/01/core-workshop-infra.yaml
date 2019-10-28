@@ -6,24 +6,6 @@ metadata:
 ---
 apiVersion: v1
 data:
-  auth: a3ViZXJuZXRlczokYXByMSRVNDlTVllISiQzNnZVelFhQktTNzRtY3lpT0V6MUkuCg==
-kind: Secret
-metadata:
-  name: traefik-basic-auth
-  namespace: workshopctl
-type: Opaque
----
-apiVersion: v1
-data:
-  auth: a3ViZXJuZXRlczokYXByMSRVNDlTVllISiQzNnZVelFhQktTNzRtY3lpT0V6MUkuCg==
-kind: Secret
-metadata:
-  name: traefik-basic-auth
-  namespace: workshopctl
-type: Opaque
----
-apiVersion: v1
-data:
   config: |-
     apiVersion: v1
     kind: Config
@@ -343,9 +325,6 @@ spec:
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  annotations:
-    ingress.kubernetes.io/auth-secret: traefik-basic-auth
-    ingress.kubernetes.io/auth-type: basic
   name: code-server
   namespace: workshopctl
 spec:

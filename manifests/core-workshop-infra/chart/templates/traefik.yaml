@@ -93,24 +93,6 @@ data:
     [ping]
     entryPoint = "api"
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: traefik-basic-auth
-  namespace: workshopctl
-type: Opaque
-data:
-  auth: a3ViZXJuZXRlczokYXByMSRVNDlTVllISiQzNnZVelFhQktTNzRtY3lpT0V6MUkuCg==
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: traefik-basic-auth
-  namespace: default
-type: Opaque
-data:
-  auth: a3ViZXJuZXRlczokYXByMSRVNDlTVllISiQzNnZVelFhQktTNzRtY3lpT0V6MUkuCg==
----
 kind: Deployment
 apiVersion: apps/v1
 metadata:

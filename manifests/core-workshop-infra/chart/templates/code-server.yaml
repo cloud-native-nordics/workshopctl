@@ -100,9 +100,6 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: code-server
-  annotations:
-    ingress.kubernetes.io/auth-type: basic
-    ingress.kubernetes.io/auth-secret: traefik-basic-auth
 spec:
   rules:
   - http:
