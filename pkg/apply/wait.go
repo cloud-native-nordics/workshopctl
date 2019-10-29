@@ -42,6 +42,7 @@ func (w *Waiter) WaitForAll() error {
 }
 
 func (w *Waiter) WaitForDeployments() error {
+	// TODO: Add Poll here in case the connection breaks
 	_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=5m")
 	return err
 }
@@ -67,7 +68,7 @@ func (w *Waiter) WaitForDNSPropagation() error {
 	err = util.Poll(nil, w.Logger, func() (bool, error) {
 		ips, err := net.LookupIP(w.Domain())
 		if err != nil {
-			return false, fmt.Errorf("lookup IP error: %v", err)
+			return false, fmt.Errorf("Domain lookup error for %q: %v", w.Domain(), err)
 		}
 		// look for the right IP
 		for _, addr := range ips {
@@ -75,13 +76,15 @@ func (w *Waiter) WaitForDNSPropagation() error {
 				return true, nil
 			}
 		}
-		return false, fmt.Errorf("not the right IP found during lookup yet, expected: %s, got: %v", ip, ips)
+		return false, fmt.Errorf("Not the right IP found during lookup yet, expected: %s, got: %v", ip, ips)
 	})
 	if err != nil {
 		return err
 	}
 
 	// TODO: Make sure Traefik has the LE Cert setup here
+	// Need to run "kubectl --kubeconfig clusters/01/.kubeconfig -n workshopctl delete pod -l app=traefik"
+	// when DNS has propagated
 
 	return nil
 }

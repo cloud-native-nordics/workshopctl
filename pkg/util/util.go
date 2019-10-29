@@ -63,7 +63,7 @@ func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc) error {
 		logger = log.NewEntry(log.StandardLogger())
 	}
 	tryCount := 0
-	return wait.PollImmediate(duration, 5*time.Minute, func() (bool, error) {
+	return wait.PollImmediate(duration, 10*time.Minute, func() (bool, error) {
 		tryCount++
 		errFn := logger.Debugf
 		if tryCount%3 == 0 { // print info every third time
