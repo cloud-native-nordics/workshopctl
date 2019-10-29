@@ -151,7 +151,7 @@ spec:
         - --memcached-service=
         - --git-url=https://github.com/cloud-native-nordics/workshopctl
         - --git-branch=master
-        - --git-path=clusters/02/
+        - --git-path=clusters/11/
         - --git-readonly=true
         - --git-user=Weave Flux
         - --git-email=support@weave.works

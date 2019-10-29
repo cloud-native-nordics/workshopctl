@@ -149,7 +149,7 @@ spec:
         - --memcached-hostname=workshopctl-flux-memcached
         - --sync-state=git
         - --memcached-service=
-        - --git-url=https://github.com/luxas/workshopctl
+        - --git-url=https://github.com/cloud-native-nordics/workshopctl
         - --git-branch=master
         - --git-path=clusters/01/
         - --git-readonly=true
