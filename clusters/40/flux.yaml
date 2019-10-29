@@ -1,0 +1,253 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: workshopctl-flux-git-deploy
+  namespace: workshopctl
+type: Opaque
+---
+apiVersion: v1
+data:
+  config: |
+    apiVersion: v1
+    clusters: []
+    contexts:
+    - context:
+        cluster: ""
+        namespace: default
+        user: ""
+      name: default
+    current-context: default
+    kind: Config
+    preferences: {}
+    users: []
+kind: ConfigMap
+metadata:
+  name: workshopctl-flux-kube-config
+  namespace: workshopctl
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: flux
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux
+  namespace: workshopctl
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    app: flux
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux
+  namespace: workshopctl
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: flux
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux
+  namespace: workshopctl
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: workshopctl-flux
+subjects:
+- kind: ServiceAccount
+  name: workshopctl-flux
+  namespace: workshopctl
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: flux-memcached
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux-memcached
+  namespace: workshopctl
+spec:
+  ports:
+  - name: memcached
+    port: 11211
+    protocol: TCP
+    targetPort: memcached
+  selector:
+    app: flux-memcached
+    release: workshopctl
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: flux
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux
+  namespace: workshopctl
+spec:
+  ports:
+  - name: http
+    port: 3030
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: flux
+    release: workshopctl
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: flux
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux
+  namespace: workshopctl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flux
+      release: workshopctl
+  template:
+    metadata:
+      annotations: null
+      labels:
+        app: flux
+        release: workshopctl
+    spec:
+      containers:
+      - args:
+        - --log-format=fmt
+        - --ssh-keygen-dir=/var/fluxd/keygen
+        - --k8s-secret-name=workshopctl-flux-git-deploy
+        - --memcached-hostname=workshopctl-flux-memcached
+        - --sync-state=git
+        - --memcached-service=
+        - --git-url=https://github.com/cloud-native-nordics/workshopctl
+        - --git-branch=master
+        - --git-path=clusters/40/
+        - --git-readonly=true
+        - --git-user=Weave Flux
+        - --git-email=support@weave.works
+        - --git-set-author=false
+        - --git-poll-interval=30s
+        - --git-timeout=20s
+        - --sync-interval=30s
+        - --git-ci-skip=false
+        - --registry-poll-interval=5m
+        - --registry-rps=200
+        - --registry-burst=125
+        - --registry-trace=false
+        env:
+        - name: KUBECONFIG
+          value: /root/.kubectl/config
+        image: docker.io/fluxcd/flux:1.15.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /api/flux/v6/identity.pub
+            port: 3030
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        name: flux
+        ports:
+        - containerPort: 3030
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /api/flux/v6/identity.pub
+            port: 3030
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /root/.kubectl
+          name: kubedir
+        - mountPath: /etc/fluxd/ssh
+          name: git-key
+          readOnly: true
+        - mountPath: /var/fluxd/keygen
+          name: git-keygen
+      serviceAccountName: workshopctl-flux
+      volumes:
+      - configMap:
+          name: workshopctl-flux-kube-config
+        name: kubedir
+      - name: git-key
+        secret:
+          defaultMode: 256
+          secretName: workshopctl-flux-git-deploy
+      - emptyDir:
+          medium: Memory
+        name: git-keygen
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: flux-memcached
+    chart: flux-0.15.0
+    heritage: Helm
+    release: workshopctl
+  name: workshopctl-flux-memcached
+  namespace: workshopctl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flux-memcached
+      release: workshopctl
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: flux-memcached
+        release: workshopctl
+    spec:
+      containers:
+      - args:
+        - -m 512
+        - -p 11211
+        - -I 5m
+        image: memcached:1.5.15
+        imagePullPolicy: IfNotPresent
+        name: memcached
+        ports:
+        - containerPort: 11211
+          name: memcached
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsGroup: 11211
+          runAsUser: 11211
