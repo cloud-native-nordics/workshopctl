@@ -35,6 +35,10 @@ func Apply(cfg *config.Config, dryrun bool) error {
 }
 
 func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun bool) error {
+	// Add some kind of mark at the end of this procedure in the cluster to say that it's
+	// been successfully provisioned (maybe in the workshopctl ConfigMap?). With this feature
+	// it's possible at this stage to skip doing the same things over and over again => idempotent
+
 	kubeconfigPath := clusterInfo.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
 		if err := provisionCluster(clusterInfo, p, dryrun); err != nil {
@@ -89,7 +93,7 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun b
 }
 
 func provisionCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun bool) error {
-	clusterInfo.Logger.Infof("Creating cluster %d...", clusterInfo.Index)
+	clusterInfo.Logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
 	cluster, err := p.CreateCluster(clusterInfo.Index, provider.ClusterSpec{
 		Name: fmt.Sprintf("workshopctl-cluster-%s", clusterInfo.Index),
 		NodeSize: provider.NodeSize{

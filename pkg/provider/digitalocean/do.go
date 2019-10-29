@@ -16,6 +16,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const Region = "fra1"
+
 func NewDigitalOceanProvider(sa *config.ServiceAccount, dryRun bool) provider.Provider {
 	p := &DigitalOceanProvider{
 		sa:     sa,
@@ -76,7 +78,7 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 
 	req := &godo.KubernetesClusterCreateRequest{
 		Name:        c.Name,
-		RegionSlug:  "fra1",
+		RegionSlug:  Region,
 		VersionSlug: c.Version, // TODO: Resolve c.Version correctly
 		Tags: []string{
 			"workshopctl",
@@ -137,7 +139,7 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 			return true, nil
 		}
 		if kcluster.Status.State == godo.KubernetesClusterStatusProvisioning {
-			return false, fmt.Errorf("Cluster is still provisioning!")
+			return false, fmt.Errorf("Cluster is still provisioning")
 		}
 
 		return false, fmt.Errorf("Unknown state %q! Message: %q", kcluster.Status.State, kcluster.Status.Message)
