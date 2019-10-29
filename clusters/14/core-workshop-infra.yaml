@@ -275,13 +275,13 @@ spec:
       - args:
         - --source=service
         - --source=ingress
-        - --domain-filter=workshopctl.kubernetesfinland.com.
-        - --provider=digitalocean
+        - --domain-filter=gke-workshopctl.kubernetesfinland.com.
+        - --provider=google
         - --policy=upsert-only
         - --registry=txt
         - --txt-owner-id=workshopctl
         env:
-        - name: DO_TOKEN
+        - name: PROVIDER_SERVICEACCOUNT
           valueFrom:
             secretKeyRef:
               key: PROVIDER_SERVICEACCOUNT
@@ -339,7 +339,7 @@ metadata:
   namespace: workshopctl
 spec:
   rules:
-  - host: cluster-14.workshopctl.kubernetesfinland.com
+  - host: cluster-14.gke-workshopctl.kubernetesfinland.com
     http:
       paths:
       - backend:

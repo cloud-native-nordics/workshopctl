@@ -198,7 +198,7 @@ metadata:
   namespace: kube-system
 spec:
   rules:
-  - host: dashboard.cluster-09.workshopctl.kubernetesfinland.com
+  - host: dashboard.cluster-09.gke-workshopctl.kubernetesfinland.com
     http:
       paths:
       - backend:
