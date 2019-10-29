@@ -83,7 +83,7 @@ spec:
               key: VSCODE_PASSWORD
         volumeMounts:
         - name: kubeconfig
-          mountPath: /root/.kube
+          mountPath: /home/coder/.kube
         - name: docker
           mountPath: /var/run/docker.sock
       volumes:
