@@ -25,8 +25,9 @@ type waitFn func() error
 
 func (w *Waiter) WaitForAll() error {
 	fns := map[string]waitFn{
-		"deployments to be Ready": w.WaitForDeployments,
-		"DNS to have propagated":  w.WaitForDNSPropagation,
+		"deployments to be Ready":        w.WaitForDeployments,
+		"DNS to have propagated":         w.WaitForDNSPropagation,
+		"TLS certs to have been created": w.WaitForTLSSetup,
 	}
 	for desc, fn := range fns {
 		msg := fmt.Sprintf("Waiting for %s", desc)
@@ -42,9 +43,14 @@ func (w *Waiter) WaitForAll() error {
 }
 
 func (w *Waiter) WaitForDeployments() error {
-	// TODO: Add Poll here in case the connection breaks
-	_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=5m")
-	return err
+	return util.Poll(nil, w.Logger, func() (bool, error) {
+		// Wait 30s using kubectl until the "global" Poll timeout is reached
+		_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=30s")
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
 }
 
 func (w *Waiter) WaitForDNSPropagation() error {
@@ -65,26 +71,50 @@ func (w *Waiter) WaitForDNSPropagation() error {
 		return err
 	}
 
-	err = util.Poll(nil, w.Logger, func() (bool, error) {
-		ips, err := net.LookupIP(w.Domain())
-		if err != nil {
-			return false, fmt.Errorf("Domain lookup error for %q: %v", w.Domain(), err)
-		}
-		// look for the right IP
-		for _, addr := range ips {
-			if addr.String() == ip.String() {
-				return true, nil
+	return util.Poll(nil, w.Logger, func() (bool, error) {
+		prefixes := []string{"", "dashboard"}
+		for _, prefix := range prefixes {
+			domain := w.Domain()
+			if len(prefix) > 0 {
+				domain = fmt.Sprintf("%s.%s", prefix, w.Domain())
 			}
+			if err := domainMatches(domain, ip); err != nil {
+				return false, err
+			}
+			w.Logger.Infof("%s now resolves to %s, as expected", domain, ip)
 		}
-		return false, fmt.Errorf("Not the right IP found during lookup yet, expected: %s, got: %v", ip, ips)
+
+		return true, nil
 	})
+}
+
+func domainMatches(domain string, expectedIP net.IP) error {
+	ips, err := net.LookupIP(domain)
+	if err != nil {
+		return fmt.Errorf("Domain lookup error for %q: %v", domain, err)
+	}
+	// look for the right IP
+	for _, addr := range ips {
+		if addr.String() == expectedIP.String() {
+			return nil
+		}
+	}
+	return fmt.Errorf("Not the right IP found during lookup yet, expected: %s, got: %v", expectedIP, ips)
+}
+
+func (w *Waiter) WaitForTLSSetup() error {
+	// TODO: Somehow verify if Traefik already has got the TLS cert
+	_, err := w.execKubectl("-n", "workshopctl", "delete", "pod", "-l=app=traefik")
 	if err != nil {
 		return err
 	}
-
-	// TODO: Make sure Traefik has the LE Cert setup here
-	// Need to run "kubectl --kubeconfig clusters/01/.kubeconfig -n workshopctl delete pod -l app=traefik"
-	// when DNS has propagated
-
+	w.Logger.Infof("Restarted traefik")
 	return nil
+	/*
+		TODO: Maybe verify somehow that we can connect to the endpoint(s) correctly.
+		return util.Poll(nil, w.Logger, func() (bool, error) {
+			_, err := http.Get(w.Domain())
+			return (err == nil), err
+		})
+	*/
 }
