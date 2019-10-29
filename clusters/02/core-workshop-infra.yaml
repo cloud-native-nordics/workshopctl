@@ -243,7 +243,7 @@ spec:
         - containerPort: 8080
           name: http
         volumeMounts:
-        - mountPath: /root/.kube
+        - mountPath: /home/coder/.kube
           name: kubeconfig
         - mountPath: /var/run/docker.sock
           name: docker
