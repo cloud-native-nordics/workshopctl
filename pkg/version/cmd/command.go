@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/luxas/workshopctl/pkg/version"
+	"github.com/cloud-native-nordics/workshopctl/pkg/version"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 )

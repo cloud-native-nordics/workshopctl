@@ -5,10 +5,10 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/provider"
-	"github.com/luxas/workshopctl/pkg/provider/digitalocean"
-	"github.com/luxas/workshopctl/pkg/util"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider/digitalocean"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 )
 
 var providers = map[string]provider.ProviderFunc{

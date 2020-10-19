@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	"github.com/digitalocean/godo"
-	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/provider"
-	"github.com/luxas/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )

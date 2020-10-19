@@ -6,7 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra/doc"
-	"github.com/luxas/workshopctl/cmd/workshopctl/cmd"
+	"github.com/cloud-native-nordics/workshopctl/cmd/workshopctl/cmd"
 )
 
 func main() {

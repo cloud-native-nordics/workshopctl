@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/luxas/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 )
 
 type NodeSize struct {

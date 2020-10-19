@@ -4,9 +4,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/luxas/workshopctl/pkg/logs"
-	logflag "github.com/luxas/workshopctl/pkg/logs/flag"
-	versioncmd "github.com/luxas/workshopctl/pkg/version/cmd"
+	"github.com/cloud-native-nordics/workshopctl/pkg/logs"
+	logflag "github.com/cloud-native-nordics/workshopctl/pkg/logs/flag"
+	versioncmd "github.com/cloud-native-nordics/workshopctl/pkg/version/cmd"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

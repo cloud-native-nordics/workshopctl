@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/util"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 )
 
 type Waiter struct {

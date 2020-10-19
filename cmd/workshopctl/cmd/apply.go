@@ -3,8 +3,8 @@ package cmd
 import (
 	"io"
 
-	"github.com/luxas/workshopctl/pkg/apply"
-	"github.com/luxas/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/apply"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

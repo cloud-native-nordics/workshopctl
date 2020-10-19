@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/luxas/workshopctl/pkg/util"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )

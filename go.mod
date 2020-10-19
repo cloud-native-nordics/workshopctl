@@ -1,4 +1,4 @@
-module github.com/luxas/workshopctl
+module github.com/cloud-native-nordics/workshopctl
 
 go 1.15
 
