@@ -1,5 +1,5 @@
 PROJECT=github.com/luxas/workshopctl
-GO_VERSION=1.13.1
+GO_VERSION=1.15.3
 BINARIES=workshopctl
 CACHE_DIR = $(shell pwd)/bin/cache
 
@@ -11,8 +11,8 @@ $(BINARIES):
 	make shell COMMAND="make bin/$@"
 
 .PHONY: bin/workshopctl
-bin/workshopctl: bin/%: vendor node_modules
-	CGO_ENABLED=0 go build -mod=vendor -ldflags "$(shell ./hack/ldflags.sh)" -o bin/$* ./cmd/$*
+bin/workshopctl: bin/%: node_modules
+	CGO_ENABLED=0 go build -ldflags "$(shell ./hack/ldflags.sh)" -o bin/$* ./cmd/$*
 
 shell:
 	mkdir -p $(CACHE_DIR)/go $(CACHE_DIR)/cache
@@ -25,16 +25,11 @@ shell:
 		golang:$(GO_VERSION) \
 		$(COMMAND)
 
-vendor:
-	go mod tidy
-	go mod vendor
-
 node_modules:
 	docker run -it -v $(pwd):/project -w /project node:slim npm install
 
 tidy: /go/bin/goimports
 	go mod tidy
-	go mod vendor
 	gofmt -s -w pkg cmd
 	goimports -w pkg cmd
 	go run hack/cobra.go
