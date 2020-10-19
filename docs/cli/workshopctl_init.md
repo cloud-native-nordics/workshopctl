@@ -2,10 +2,6 @@
 
 Setup the user configuration interactively
 
-### Synopsis
-
-Setup the user configuration interactively
-
 ```
 workshopctl init [flags]
 ```

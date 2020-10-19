@@ -2,10 +2,6 @@
 
 Generate a set of manifests based on the configuration
 
-### Synopsis
-
-Generate a set of manifests based on the configuration
-
 ```
 workshopctl gen [flags]
 ```
@@ -14,7 +10,7 @@ workshopctl gen [flags]
 
 ```
   -c, --clusters uint16      How many clusters to create (default 1)
-  -r, --git-repo string      What git repo to use (default "https://github.com/luxas/workshopctl")
+  -r, --git-repo string      What git repo to use (default "https://github.com/cloud-native-nordics/workshopctl")
   -h, --help                 help for gen
       --provider string      What provider to use (default "digitalocean")
       --root-dir string      Where the workshopctl directory is (default ".")

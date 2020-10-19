@@ -2,10 +2,6 @@
 
 Print the version
 
-### Synopsis
-
-Print the version
-
 ```
 workshopctl version [flags]
 ```

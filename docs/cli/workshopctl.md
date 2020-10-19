@@ -2,10 +2,6 @@
 
 workshopctl: easily run Kubernetes workshops
 
-### Synopsis
-
-workshopctl: easily run Kubernetes workshops
-
 ### Options
 
 ```

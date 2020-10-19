@@ -2,10 +2,6 @@
 
 Create a Kubernetes cluster and apply the desired manifests
 
-### Synopsis
-
-Create a Kubernetes cluster and apply the desired manifests
-
 ```
 workshopctl apply [flags]
 ```
@@ -15,7 +11,7 @@ workshopctl apply [flags]
 ```
   -c, --clusters uint16          How many clusters to create (default 1)
       --dry-run                  Whether to dry-run or not (default true)
-  -r, --git-repo string          What git repo to use (default "https://github.com/luxas/workshopctl")
+  -r, --git-repo string          What git repo to use (default "https://github.com/cloud-native-nordics/workshopctl")
   -h, --help                     help for apply
       --node-count uint16        How many nodes per cluster (default 1)
       --node-cpus uint16         How much CPUs to use per-node (default 2)

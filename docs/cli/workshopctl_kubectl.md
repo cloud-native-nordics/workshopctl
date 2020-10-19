@@ -2,10 +2,6 @@
 
 An alias for the kubectl command, pointing the KUBECONFIG to the right place
 
-### Synopsis
-
-An alias for the kubectl command, pointing the KUBECONFIG to the right place
-
 ```
 workshopctl kubectl [flags]
 ```
