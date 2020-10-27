@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -11,10 +12,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/otiai10/copy"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/kustomize/kyaml/kio"
@@ -46,20 +47,9 @@ func Copy(src string, dst string) error {
 	return copy.Copy(src, dst)
 }
 
-func ExecuteCommand(command string, args ...string) (string, error) {
-	log.Debugf(`Executing "%s %s"`, command, strings.Join(args, " "))
-	cmd := exec.Command(command, args...)
-	outbytes, err := cmd.CombinedOutput()
-	out := string(bytes.TrimSpace(outbytes))
-	if err != nil {
-		log.Debugf(`Returned error: %v and output: %q`, err, out)
-		return out, fmt.Errorf("command %q exited with %q: %v", cmd.Args, out, err)
-	}
+func Poll(ctx context.Context, d *time.Duration, fn wait.ConditionFunc) error {
+	logger := Logger(ctx)
 
-	return out, nil
-}
-
-func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc, dryRun bool) error {
 	logger.Traceln("Poll function started")
 	defer logger.Traceln("Poll function quit")
 
@@ -67,11 +57,13 @@ func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc, dryRun boo
 	if d != nil {
 		duration = *d
 	}
-	if logger == nil {
-		logger = log.NewEntry(log.StandardLogger())
-	}
+	// Set a deadline at 10 mins
+	ctxWithDeadline, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	// releases resources if operation completes before timeout elapses
+	defer cancel()
+
 	tryCount := 0
-	return wait.PollImmediate(duration, 10*time.Minute, func() (bool, error) {
+	return wait.PollImmediateUntil(duration, func() (bool, error) {
 		tryCount++
 		errFn := logger.Debugf
 		if tryCount%3 == 0 { // print info every third time
@@ -87,12 +79,12 @@ func Poll(d *time.Duration, logger *log.Entry, fn wait.ConditionFunc, dryRun boo
 				err = nil
 			}
 		}
-		if dryRun {
+		if IsDryRun(ctx) {
 			logger.Info("This is a dry-run, hence one loop run is enough. Under normal circumstances, this loop would continue until the condition is met.")
 			return true, nil
 		}
 		return done, err
-	})
+	}, ctxWithDeadline.Done())
 }
 
 func DebugObject(msg string, obj interface{}) {
@@ -124,34 +116,21 @@ func ReadYAMLFile(file string, obj interface{}) error {
 	return yaml.UnmarshalStrict(b, obj)
 }
 
-func WriteYAMLFile(file string, obj interface{}) error {
+func WriteYAMLFile(ctx context.Context, file string, obj interface{}) error {
 	b, err := yaml.Marshal(obj)
 	if err != nil {
 		return err
 	}
+	return WriteFile(ctx, file, b)
+}
+
+func WriteFile(ctx context.Context, file string, b []byte) error {
+	if IsDryRun(ctx) {
+		logger := Logger(ctx)
+		logger.Infof("Would write the following contents to file %q: %s", file, string(b))
+		return nil
+	}
 	return ioutil.WriteFile(file, b, 0644)
-}
-
-func ApplyTemplate(tmpl string, data interface{}) (string, error) {
-	buf := &bytes.Buffer{}
-	if err := template.Must(template.New("tmpl").Delims("{{", "}}").Parse(tmpl)).Execute(buf, data); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-// ExecPipe executes the given command, but reads from r and writes to w
-func ExecPipe(r io.Reader, w io.Writer, pwd string, command string, args ...string) error {
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = r
-	cmd.Stdout = w
-	cmd.Stderr = os.Stdout
-	if len(pwd) != 0 {
-		cmd.Dir = pwd
-	}
-	log.Debugf("Running command: %q with pwd: %q", cmd.Args, cmd.Dir)
-
-	return cmd.Run() // TODO: Output debugging
 }
 
 type KYAMLFilterFunc func(*kyaml.RNode) (*kyaml.RNode, error)
@@ -211,26 +190,96 @@ func KYAMLResourceMetaMatcher(node *kyaml.RNode, matchStatements ...KYAMLResourc
 	return nil
 }
 
-func ExecForeground(command string, args ...string) (int, error) {
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	cmdArgs := strings.Join(cmd.Args, " ")
+func Command(ctx context.Context, command string, args ...string) *ExecUtil {
+	return &ExecUtil{
+		cmd:    exec.CommandContext(ctx, command, args...),
+		outBuf: new(bytes.Buffer),
+		ctx:    ctx,
+		logger: Logger(ctx),
+	}
+}
 
-	var cmdErr error
-	var exitCode int
+func ShellCommand(ctx context.Context, format string, args ...interface{}) *ExecUtil {
+	return Command(ctx, "/bin/sh", "-c", fmt.Sprintf(format, args...))
+}
 
-	if err != nil {
-		cmdErr = fmt.Errorf("external command %q exited with an error: %v", cmdArgs, err)
+type ExecUtil struct {
+	cmd    *exec.Cmd
+	outBuf *bytes.Buffer
+	ctx    context.Context
+	logger *logrus.Entry
+}
 
-		if exitError, ok := err.(*exec.ExitError); ok {
-			exitCode = exitError.ExitCode()
-		} else {
-			cmdErr = fmt.Errorf("failed to get exit code for external command %q", cmdArgs)
-		}
+func (e *ExecUtil) Cmd() *exec.Cmd {
+	return e.cmd
+}
+
+func (e *ExecUtil) WithStdio(stdin io.Reader, stdout, stderr io.Writer) *ExecUtil {
+	if stdin != nil {
+		e.logger.Debug("Set command stdin")
+		e.cmd.Stdin = stdin
+	}
+	if stdout != nil {
+		e.logger.Debug("Set command stdout")
+		e.cmd.Stdout = stdout
+	}
+	if stderr != nil {
+		e.logger.Debug("Set command stderr")
+		e.cmd.Stderr = stderr
+	}
+	return e
+}
+
+func (e *ExecUtil) WithPwd(pwd string) *ExecUtil {
+	e.logger.Debugf("Set command pwd: %q", pwd)
+	e.cmd.Dir = pwd
+	return e
+}
+
+func (e *ExecUtil) WithEnv(envVars ...string) *ExecUtil {
+	e.logger.Debugf("Set command env vars: %v", envVars)
+	e.cmd.Env = append(e.cmd.Env, envVars...)
+	return e
+}
+
+func (e *ExecUtil) Run() (output string, exitCode int, cmdErr error) {
+	cmdArgs := e.cmd.Path + " " + strings.Join(e.cmd.Args, " ")
+
+	// Don't do this if we're dry-running
+	if IsDryRun(e.ctx) {
+		e.logger.Infof("Would execute command %q", cmdArgs)
+		return "", 0, nil
 	}
 
-	return exitCode, cmdErr
+	// Always capture stdout output to e.outBuf
+	if e.cmd.Stdout != nil {
+		e.cmd.Stdout = io.MultiWriter(e.cmd.Stdout, e.outBuf)
+	} else {
+		e.cmd.Stdout = e.outBuf
+	}
+	// Always capture stderr output to e.outBuf
+	if e.cmd.Stderr != nil {
+		e.cmd.Stderr = io.MultiWriter(e.cmd.Stderr, e.outBuf)
+	} else {
+		e.cmd.Stderr = e.outBuf
+	}
+	// Run command
+	e.logger.Debugf("Running command %q", cmdArgs)
+	if err := e.cmd.Run(); err != nil {
+
+		exitCodeStr := "'unknown'"
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode = exitError.ExitCode()
+			exitCodeStr = fmt.Sprintf("%d", exitCode)
+		}
+
+		cmdErr = fmt.Errorf("external command %q exited with code %s and error: %w", cmdArgs, exitCodeStr, err)
+		e.logger.Errorf("Command error: %v", cmdErr)
+	}
+	// Capture combined output
+	output = string(bytes.TrimSpace(e.outBuf.Bytes()))
+	if len(output) != 0 {
+		e.logger.Debugf("Command %q produced output: %s", cmdArgs, output)
+	}
+	return
 }
