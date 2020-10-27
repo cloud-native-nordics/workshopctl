@@ -15,27 +15,39 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var genSkipLocalCharts = false
+type GenFlags struct {
+	*RootFlags
+
+	SkipLocalCharts bool
+}
 
 // NewGenCommand returns the "gen" command
-func NewGenCommand() *cobra.Command {
+func NewGenCommand(rf *RootFlags) *cobra.Command {
+	gf := &GenFlags{
+		RootFlags:       rf,
+		SkipLocalCharts: false,
+	}
 	cmd := &cobra.Command{
 		Use:   "gen",
 		Short: "Generate a set of manifests based on the configuration",
-		Run:   RunGen,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := RunGen(gf); err != nil {
+				log.Fatal(err)
+			}
+		},
 	}
 
-	addGenFlags(cmd.Flags())
+	addGenFlags(cmd.Flags(), gf)
 	return cmd
 }
 
-func addGenFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&genSkipLocalCharts, "skip-local-charts", genSkipLocalCharts, "Don't consider the local directory's charts/ directory")
+func addGenFlags(fs *pflag.FlagSet, gf *GenFlags) {
+	fs.BoolVar(&gf.SkipLocalCharts, "skip-local-charts", gf.SkipLocalCharts, "Don't consider the local directory's charts/ directory")
 }
 
-func loadConfig() (*config.Config, error) {
+func loadConfig(configPath string) (*config.Config, error) {
 	cfg := &config.Config{}
-	if err := util.ReadYAMLFile(configPathFlag, cfg); err != nil {
+	if err := util.ReadYAMLFile(configPath, cfg); err != nil {
 		return nil, err
 	}
 	if err := initConfig(cfg); err != nil {
@@ -47,52 +59,47 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-func RunGen(cmd *cobra.Command, args []string) {
-	err := func() error {
-		cfg, err := loadConfig()
+func RunGen(gf *GenFlags) error {
+	cfg, err := loadConfig(gf.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	charts, err := gen.SetupInternalChartCache(cfg.RootDir)
+	if err != nil {
+		return err
+	}
+
+	if !gf.SkipLocalCharts {
+		chartsDir := filepath.Join(cfg.RootDir, constants.ChartsDir)
+		chartInfos, err := ioutil.ReadDir(chartsDir)
 		if err != nil {
 			return err
 		}
-
-		charts, err := gen.SetupInternalChartCache(cfg.RootDir)
-		if err != nil {
-			return err
-		}
-
-		if !genSkipLocalCharts {
-			chartsDir := filepath.Join(cfg.RootDir, constants.ChartsDir)
-			chartInfos, err := ioutil.ReadDir(chartsDir)
+		for _, chartInfo := range chartInfos {
+			if !chartInfo.IsDir() {
+				continue
+			}
+			chart, err := gen.SetupExternalChartCache(cfg.RootDir, chartInfo.Name())
 			if err != nil {
 				return err
 			}
-			for _, chartInfo := range chartInfos {
-				if !chartInfo.IsDir() {
-					continue
-				}
-				chart, err := gen.SetupExternalChartCache(cfg.RootDir, chartInfo.Name())
-				if err != nil {
-					return err
-				}
-				charts = append(charts, chart)
-			}
+			charts = append(charts, chart)
 		}
-
-		dnsProvider, ok := providers.DNSProviders[cfg.DNSProvider.Name]
-		if !ok {
-			return fmt.Errorf("didn't find dns provider %s", cfg.DNSProvider.Name)
-		}
-
-		return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
-			for _, chart := range charts {
-				clusterInfo.Logger.Infof("Generating chart %q...", chart.Name)
-				if err := gen.GenerateChart(chart, clusterInfo, dnsProvider.ValuesProcessors(), dnsProvider.ChartProcessors()); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}()
-	if err != nil {
-		log.Fatal(err)
 	}
+
+	dnsProvider, ok := providers.DNSProviders[cfg.DNSProvider.Name]
+	if !ok {
+		return fmt.Errorf("didn't find dns provider %s", cfg.DNSProvider.Name)
+	}
+
+	return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
+		for _, chart := range charts {
+			clusterInfo.Logger.Infof("Generating chart %q...", chart.Name)
+			if err := gen.GenerateChart(chart, clusterInfo, dnsProvider.ValuesProcessors(), dnsProvider.ChartProcessors()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

@@ -14,6 +14,5 @@ func main() {
 
 // Run runs the main cobra command of this application
 func Run() error {
-	c := cmd.NewWorkshopCtlCommand(os.Stdin, os.Stdout, os.Stderr)
-	return c.Execute()
+	return cmd.NewWorkshopCtlCommand().Execute()
 }

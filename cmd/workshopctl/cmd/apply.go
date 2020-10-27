@@ -7,33 +7,40 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var dryrun = true
+type ApplyFlags struct {
+	*RootFlags
+
+	DryRun bool
+}
 
 // NewApplyCommand returns the "apply" command
-func NewApplyCommand() *cobra.Command {
+func NewApplyCommand(rf *RootFlags) *cobra.Command {
+	af := &ApplyFlags{
+		RootFlags: rf,
+		DryRun:    true,
+	}
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Create a Kubernetes cluster and apply the desired manifests",
-		Run:   RunApply,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := RunApply(af); err != nil {
+				log.Fatal(err)
+			}
+		},
 	}
 
-	addApplyFlags(cmd.Flags())
+	addApplyFlags(cmd.Flags(), af)
 	return cmd
 }
 
-func addApplyFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&dryrun, "dry-run", dryrun, "Whether to dry-run or not")
+func addApplyFlags(fs *pflag.FlagSet, af *ApplyFlags) {
+	fs.BoolVar(&af.DryRun, "dry-run", af.DryRun, "Whether to dry-run or not")
 }
 
-func RunApply(cmd *cobra.Command, args []string) {
-	err := func() error {
-		cfg, err := loadConfig()
-		if err != nil {
-			return err
-		}
-		return apply.Apply(cfg, dryrun)
-	}()
+func RunApply(af *ApplyFlags) error {
+	cfg, err := loadConfig(af.ConfigPath)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return apply.Apply(cfg, af.DryRun)
 }

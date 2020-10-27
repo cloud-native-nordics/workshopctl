@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"io"
 	"os"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/logs"
@@ -12,35 +11,40 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var (
-	logLevelFlag   = logrus.InfoLevel
-	configPathFlag = "workshopctl.yaml"
-	rootDirFlag    = "."
-)
+type RootFlags struct {
+	LogLevel   logrus.Level
+	ConfigPath string
+	RootDir    string
+}
 
-// NewIgniteCommand returns the root command for ignite
-func NewWorkshopCtlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
+// NewWorkshopCtlCommand returns the root command for workshopctl
+func NewWorkshopCtlCommand() *cobra.Command {
+	rf := &RootFlags{
+		LogLevel:   logrus.InfoLevel,
+		ConfigPath: "workshopctl.yaml",
+		RootDir:    ".",
+	}
 	root := &cobra.Command{
 		Use:   "workshopctl",
 		Short: "workshopctl: easily run Kubernetes workshops",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Set the desired logging level, now that the flags are parsed
-			logs.Logger.SetLevel(logLevelFlag)
+			logs.Logger.SetLevel(rf.LogLevel)
 		},
 	}
 
-	addGlobalFlags(root.PersistentFlags())
+	addGlobalFlags(root.PersistentFlags(), rf)
 
-	root.AddCommand(NewInitCommand(os.Stdin, os.Stdout, os.Stderr))
-	root.AddCommand(NewGenCommand())
-	root.AddCommand(NewApplyCommand())
-	root.AddCommand(NewKubectlCommand(os.Stdin, os.Stdout, os.Stderr))
+	root.AddCommand(NewInitCommand(rf))
+	root.AddCommand(NewGenCommand(rf))
+	root.AddCommand(NewApplyCommand(rf))
+	root.AddCommand(NewKubectlCommand(rf))
 	root.AddCommand(versioncmd.NewCmdVersion(os.Stdout))
 	return root
 }
 
-func addGlobalFlags(fs *pflag.FlagSet) {
-	logflag.LogLevelFlagVar(fs, &logLevelFlag)
-	fs.StringVar(&rootDirFlag, "root-dir", rootDirFlag, "Where the workshopctl directory is. Must be a Git repo.")
-	fs.StringVar(&configPathFlag, "config-path", configPathFlag, "Where to find the config file")
+func addGlobalFlags(fs *pflag.FlagSet, rf *RootFlags) {
+	logflag.LogLevelFlagVar(fs, &rf.LogLevel)
+	fs.StringVar(&rf.RootDir, "root-dir", rf.RootDir, "Where the workshopctl directory is. Must be a Git repo.")
+	fs.StringVar(&rf.ConfigPath, "config-path", rf.ConfigPath, "Where to find the config file")
 }

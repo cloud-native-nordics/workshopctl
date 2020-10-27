@@ -1,43 +1,54 @@
 package cmd
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
+type InitFlags struct {
+	*RootFlags
+}
+
 // NewInitCommand returns the "init" command
-func NewInitCommand(in io.Reader, out, err io.Writer) *cobra.Command {
+func NewInitCommand(rf *RootFlags) *cobra.Command {
+	inf := &InitFlags{
+		RootFlags: rf,
+	}
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Setup the user configuration interactively",
-		RunE:  RunInit,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := RunInit(inf); err != nil {
+				log.Fatal(err)
+			}
+		},
 	}
 
-	addInitFlags(cmd.Flags())
+	addInitFlags(cmd.Flags(), inf)
 	return cmd
 }
 
-func addInitFlags(fs *pflag.FlagSet) {}
+func addInitFlags(fs *pflag.FlagSet, inf *InitFlags) {}
 
-func RunInit(cmd *cobra.Command, args []string) error {
-	if util.FileExists(configPathFlag) {
+func RunInit(inf *InitFlags) error {
+	if util.FileExists(inf.ConfigPath) {
 		return nil
 	}
 	cfg := &config.Config{}
 	if err := initConfig(cfg); err != nil {
 		return err
 	}
-	return util.WriteYAMLFile(configPathFlag, cfg)
+	return util.WriteYAMLFile(inf.ConfigPath, cfg)
 }
 
 func initConfig(cfg *config.Config) error {
-	if !filepath.IsAbs(cfg.RootDir) {
+	if !filepath.IsAbs(cfg.RootDir) { // TODO: This probably doesn't work yet
 		wd, err := os.Getwd()
 		if err != nil {
 			return err
