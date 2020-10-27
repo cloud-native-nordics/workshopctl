@@ -1,0 +1,192 @@
+### RBAC ###
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: traefik
+rules:
+- apiGroups:
+    - ""
+  resources:
+    - services
+    - endpoints
+    - secrets
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - extensions
+    - networking.k8s.io
+  resources:
+    - ingresses
+    - ingressclasses
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - extensions
+  resources:
+    - ingresses/status
+  verbs:
+    - update
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik
+  namespace: workshopctl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: traefik
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik
+subjects:
+- kind: ServiceAccount
+  name: traefik
+  namespace: workshopctl
+---
+### ConfigMap, Deployment & Service ###
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-cfg
+  namespace: workshopctl
+  labels:
+    app: traefik
+data:
+  api.yaml: |
+    http:
+      routers:
+        my-api:
+          rule: Host(`traefik.{{ .Values.workshopctl.CLUSTER_DOMAIN }}`)
+          service: api@internal
+          entryPoints:
+          - traefik
+          middlewares:
+          - api-auth
+      middlewares:
+        api-auth:
+          basicAuth:
+            users:
+            # This value is replaced on-demand from the given env var, that comes from a Secret
+            - "\{\{ env "CLUSTER_BASIC_AUTH_BCRYPT" \}\}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+  namespace: workshopctl
+  labels:
+    app: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+    spec:
+      serviceAccountName: traefik
+      containers:
+      - name: traefik
+        image: traefik:v2.3
+        args:
+        - --api=true
+        - --metrics.prometheus=true
+        - --accesslog=true
+        - --accesslog.filepath=/traefik-cache/access.log
+        - --log.level=DEBUG
+        - --providers.file.directory=/traefik-cfg
+        - --providers.file.watch=true
+        - --providers.kubernetesingress=true
+        - --providers.kubernetesingress.ingressendpoint.publishedservice=workshopctl/traefik
+        - --entrypoints.web.address=:80
+        - --entrypoints.web.http.redirections.entrypoint.to=websecure
+        - --entrypoints.web.http.redirections.entrypoint.scheme=https
+        - --entrypoints.websecure.address=:443
+        - --entrypoints.websecure.http.tls.certresolver=letsencrypt
+        - --entrypoints.traefik.address=:8080
+        - --entrypoints.traefik.http.tls.certresolver=letsencrypt
+        - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+        - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=$(TRAEFIK_DNS_PROVIDER)
+        - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+        - --certificatesresolvers.letsencrypt.acme.email=$(LETSENCRYPT_EMAIL)
+        - --certificatesresolvers.letsencrypt.acme.storage=/traefik-cache/acme.json
+        # Please note that this is the staging Let's Encrypt server.
+        # Once you get things working, you should remove that whole line altogether.
+        - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        - name: admin
+          containerPort: 8080
+        - name: admin-http
+          containerPort: 8080
+        env:
+        - name: LETSENCRYPT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: LETSENCRYPT_EMAIL
+        - name: TRAEFIK_DNS_PROVIDER
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: TRAEFIK_DNS_PROVIDER
+        # This is used in the "static configuration" for the Traefik API
+        - name: CLUSTER_BASIC_AUTH_BCRYPT
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: CLUSTER_BASIC_AUTH_BCRYPT
+        # PROVIDER-CUSTOMIZE: Here there needs to be one more dynamic "patch" that makes Traefik able to
+        # access the DNS token
+        volumeMounts:
+        - name: traefik-cfg
+          mountPath: /traefik-cfg
+        - name: traefik-cache
+          mountPath: /traefik-cache
+      volumes:
+      - name: traefik-cfg
+        configMap:
+          name: traefik-cfg
+      - name: traefik-cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  namespace: workshopctl
+  labels:
+    app: traefik
+spec:
+  ports:
+  - name: http
+    port: 80
+  - name: https
+    port: 443
+  # Allows access to the Traefik UI. For demo usage only.
+  - name: admin
+    port: 8080
+  selector:
+    app: traefik
+  type: LoadBalancer
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: IngressClass
+metadata: 
+  name: traefik
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+spec:
+  controller: traefik.io/ingress-controller

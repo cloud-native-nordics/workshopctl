@@ -10,12 +10,9 @@ metadata:
   name: external-dns
 rules:
 - apiGroups: [""]
-  resources: ["services"]
+  resources: ["services","endpoints","pods"]
   verbs: ["get","watch","list"]
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get","watch","list"]
-- apiGroups: ["extensions"] 
+- apiGroups: ["extensions","networking.k8s.io"]
   resources: ["ingresses"] 
   verbs: ["get","watch","list"]
 - apiGroups: [""]
@@ -43,6 +40,8 @@ metadata:
   namespace: workshopctl
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: external-dns
@@ -54,18 +53,19 @@ spec:
       serviceAccountName: external-dns
       containers:
       - name: external-dns
-        image: registry.opensource.zalan.do/teapot/external-dns:v0.5.17
+        image: k8s.gcr.io/external-dns/external-dns:v0.7.3
         args:
-        - --source=service
+        # Watch Ingress objects and create DNS records correspondingly 
         - --source=ingress
-        - --domain-filter={{ .Values.workshopctl.rootDomain }}. # will make ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
-        - --provider={{ .Values.workshopctl.provider }}
-        - --policy=upsert-only # would prevent ExternalDNS from deleting any records, omit to enable full synchronization
+        # Makes ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
+        - --domain-filter={{ .Values.workshopctl.CLUSTER_DOMAIN }}.
+        - --provider={{ .Values.workshopctl.EXTERNAL_DNS_PROVIDER }}
+        # Prevents ExternalDNS from deleting any records, omit to enable full synchronization
+        - --policy=upsert-only
         - --registry=txt
         - --txt-owner-id=workshopctl
-        env:
-        - name: PROVIDER_SERVICEACCOUNT
-          valueFrom:
-            secretKeyRef:
-              name: workshopctl
-              key: PROVIDER_SERVICEACCOUNT
+        # Resync often as this is a highly dynamic system
+        - --interval=30s
+        - --log-level=debug
+        # Possibly in the future, add --events support
+        # PROVIDER-CUSTOMIZE: Need to set per-provider ENV VARs here
