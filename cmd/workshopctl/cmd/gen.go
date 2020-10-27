@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"context"
 	"io/ioutil"
 	"path/filepath"
 
@@ -60,6 +60,7 @@ func loadConfig(configPath string) (*config.Config, error) {
 }
 
 func RunGen(gf *GenFlags) error {
+	ctx := context.Background()
 	cfg, err := loadConfig(gf.ConfigPath)
 	if err != nil {
 		return err
@@ -88,15 +89,17 @@ func RunGen(gf *GenFlags) error {
 		}
 	}
 
-	dnsProvider, ok := providers.DNSProviders[cfg.DNSProvider.Name]
-	if !ok {
-		return fmt.Errorf("didn't find dns provider %s", cfg.DNSProvider.Name)
+	// dry-run can be always true here as we're not gonna use the provider for requests
+	dnsProvider, err := providers.DNSProviders().NewDNSProvider(ctx, cfg.DNSProvider, cfg.RootDomain, true)
+	if err != nil {
+		return err
 	}
 
-	return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
+	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
 		for _, chart := range charts {
-			clusterInfo.Logger.Infof("Generating chart %q...", chart.Name)
-			if err := gen.GenerateChart(chart, clusterInfo, dnsProvider.ValuesProcessors(), dnsProvider.ChartProcessors()); err != nil {
+			logger := util.Logger(ctx)
+			logger.Infof("Generating chart %q...", chart.Name)
+			if err := gen.GenerateChart(clusterCtx, chart, clusterInfo, dnsProvider.ValuesProcessors(), dnsProvider.ChartProcessors()); err != nil {
 				return err
 			}
 		}

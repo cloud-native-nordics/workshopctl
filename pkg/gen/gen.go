@@ -2,6 +2,7 @@ package gen
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -144,7 +145,9 @@ func downloadChart(rootPath, externalChartFile string) error {
 	return err
 }
 
-func GenerateChart(cd *ChartData, clusterInfo *config.ClusterInfo, valuesProcessors, chartProcessors []Processor) error {
+func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.ClusterInfo, valuesProcessors, chartProcessors []Processor) error {
+	logger := util.Logger(ctx)
+
 	namespace := constants.DefaultNamespace
 	if nsFile, ok := cd.CopiedFiles[constants.NamespaceFile]; ok {
 		b, err := ioutil.ReadFile(nsFile)
@@ -184,12 +187,12 @@ func GenerateChart(cd *ChartData, clusterInfo *config.ClusterInfo, valuesProcess
 	input := bytes.NewBuffer(initialData)
 	output := new(bytes.Buffer)
 	for i, processor := range processorChain {
-		clusterInfo.Logger.Tracef("Before processor %d: %s", i, input.String())
+		logger.Tracef("Before processor %d: %s", i, input.String())
 		if err := processor.Process(cd, p, input, output); err != nil {
-			clusterInfo.Logger.Errorf("error: %v, output: %s", err, output.String())
+			logger.Errorf("error: %v, output: %s", err, output.String())
 			return err
 		}
-		clusterInfo.Logger.Tracef("After processor %d: %s", i, output.String())
+		logger.Tracef("After processor %d: %s", i, output.String())
 		// Reset the input array, that is no longer needed
 		input.Reset()
 		// Now we can set the output pointer to be the next input, and the reset output to be an

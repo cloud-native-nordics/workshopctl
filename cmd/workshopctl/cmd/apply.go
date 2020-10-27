@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/cloud-native-nordics/workshopctl/pkg/apply"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,9 +40,10 @@ func addApplyFlags(fs *pflag.FlagSet, af *ApplyFlags) {
 }
 
 func RunApply(af *ApplyFlags) error {
+	ctx := context.Background()
 	cfg, err := loadConfig(af.ConfigPath)
 	if err != nil {
 		return err
 	}
-	return apply.Apply(cfg, af.DryRun)
+	return apply.Apply(ctx, cfg, af.DryRun)
 }

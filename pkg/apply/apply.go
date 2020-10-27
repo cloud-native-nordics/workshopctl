@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -14,40 +15,41 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Apply(cfg *config.Config, dryrun bool) error {
-	// Enforce that gen is up-to-date
+func Apply(ctx context.Context, cfg *config.Config, dryrun bool) error {
+	// TODO: Enforce that gen is up-to-date
 
-	pFunc, ok := providers.CloudProviders[cfg.CloudProvider.Name]
-	if !ok {
-		return fmt.Errorf("Provider %s is not supported!", cfg.CloudProvider.Name)
+	cp, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider, dryrun)
+	if err != nil {
+		return err
 	}
-	p := pFunc(&cfg.CloudProvider, dryrun)
 
-	return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
-		return ApplyCluster(clusterInfo, p, dryrun)
+	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
+		return ApplyCluster(clusterCtx, clusterInfo, cp, dryrun)
 	})
 }
 
-func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
+func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
+	logger := util.Logger(ctx)
+
 	// Add some kind of mark at the end of this procedure in the cluster to say that it's
 	// been successfully provisioned (maybe in the workshopctl ConfigMap?). With this feature
 	// it's possible at this stage to skip doing the same things over and over again => idempotent
 
 	kubeconfigPath := clusterInfo.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
-		clusterInfo.Logger.Info("Provisioning the Kubernetes cluster")
-		if err := provisionCluster(clusterInfo, p, dryrun); err != nil {
+		logger.Info("Provisioning the Kubernetes cluster")
+		if err := provisionCluster(ctx, clusterInfo, p, dryrun); err != nil {
 			return err
 		}
 	} else {
-		clusterInfo.Logger.Infof("Assuming cluster is already provisioned, as %q exists...", kubeconfigPath)
+		logger.Infof("Assuming cluster is already provisioned, as %q exists...", kubeconfigPath)
 	}
 
 	localKubectl := func() *kubectlExecer {
 		return kubectl(kubeconfigPath, dryrun).WithNS(constants.WorkshopctlNamespace)
 	}
 
-	clusterInfo.Logger.Info("Applying workshopctl Namespace")
+	logger.Info("Applying workshopctl Namespace")
 	if _, err := kubectl(kubeconfigPath, dryrun).
 		Create("namespace", "", constants.WorkshopctlNamespace, true, false).
 		Run(); err != nil {
@@ -61,7 +63,7 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.CloudProvider, dry
 		paramFlags = append(paramFlags, fmt.Sprintf("--from-literal=%s=%s", k, v))
 	}
 
-	clusterInfo.Logger.Info("Applying workshopctl Secret")
+	logger.Info("Applying workshopctl Secret")
 	if _, err := localKubectl().
 		Create("secret", "generic", constants.WorkshopctlSecret, true, true).
 		WithArgs(paramFlags...).
@@ -72,19 +74,21 @@ func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.CloudProvider, dry
 	requiredAddons := []string{"core-workshop-infra"} // TODO: GOTK
 	for _, addon := range requiredAddons {
 		addonPath := fmt.Sprintf("clusters/%s/%s.yaml", clusterInfo.Index, addon)
-		clusterInfo.Logger.Infof("Applying addon %s", addonPath)
+		logger.Infof("Applying addon %s", addonPath)
 		if _, err := localKubectl().WithArgs("apply").WithFile(addonPath).Run(); err != nil {
 			return err
 		}
 	}
 
 	// Wait for the cluster to be healthy
-	return NewWaiter(clusterInfo, dryrun).WaitForAll()
+	return NewWaiter(ctx, clusterInfo, dryrun).WaitForAll()
 }
 
-func provisionCluster(clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
-	clusterInfo.Logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
-	cluster, err := p.CreateCluster(clusterInfo.Index, provider.ClusterSpec{
+func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
+	logger := util.Logger(ctx)
+
+	logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
+	cluster, err := p.CreateCluster(ctx, clusterInfo.Index, provider.ClusterSpec{
 		Name:       fmt.Sprintf("workshopctl-cluster-%s", clusterInfo.Index),
 		Version:    "latest",
 		NodeGroups: clusterInfo.NodeGroups,
@@ -96,11 +100,11 @@ func provisionCluster(clusterInfo *config.ClusterInfo, p provider.CloudProvider,
 		return nil
 	}
 
-	clusterInfo.Logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name, cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
+	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name, cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
 	util.DebugObject("Returned cluster object", *cluster)
 
 	kubeconfigPath := clusterInfo.KubeConfigPath()
-	clusterInfo.Logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
+	logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
 	return ioutil.WriteFile(kubeconfigPath, cluster.Status.KubeconfigBytes, 0600)
 }
 

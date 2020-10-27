@@ -9,15 +9,19 @@ import (
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
+	"github.com/sirupsen/logrus"
 )
 
 type Waiter struct {
 	*config.ClusterInfo
+	ctx    context.Context
+	logger *logrus.Entry
 	dryrun bool
 }
 
-func NewWaiter(info *config.ClusterInfo, dryrun bool) *Waiter {
-	return &Waiter{info, dryrun}
+func NewWaiter(ctx context.Context, info *config.ClusterInfo, dryrun bool) *Waiter {
+	// TODO: Make dry-run a context-scoped variable
+	return &Waiter{info, ctx, util.Logger(ctx), dryrun}
 }
 
 func (w *Waiter) kubectl() *kubectlExecer {
@@ -34,19 +38,19 @@ func (w *Waiter) WaitForAll() error {
 	}
 	for desc, fn := range fns {
 		msg := fmt.Sprintf("Waiting for %s", desc)
-		w.Logger.Infof("%s...", msg)
+		w.logger.Infof("%s...", msg)
 		before := time.Now().UTC()
 		if err := fn(); err != nil {
 			return fmt.Errorf("%s failed with: %v", msg, err)
 		}
 		after := time.Now().UTC()
-		w.Logger.Infof("%s took %s", msg, after.Sub(before).String())
+		w.logger.Infof("%s took %s", msg, after.Sub(before).String())
 	}
 	return nil
 }
 
 func (w *Waiter) WaitForDeployments() error {
-	return util.Poll(nil, w.Logger, func() (bool, error) {
+	return util.Poll(nil, w.logger, func() (bool, error) {
 		// Wait 30s using kubectl until the "global" Poll timeout is reached
 		_, err := w.kubectl().WithArgs("wait", "deployment", "--for=condition=Available", "--all", "--timeout=30s").Run()
 		if err != nil {
@@ -58,14 +62,14 @@ func (w *Waiter) WaitForDeployments() error {
 
 func (w *Waiter) WaitForDNSPropagation() error {
 	var ip net.IP
-	err := util.Poll(nil, w.Logger, func() (bool, error) {
+	err := util.Poll(nil, w.logger, func() (bool, error) {
 		addr, err := w.kubectl().WithArgs("get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`).Run()
 		if err != nil {
 			return false, err
 		}
 		ip = net.ParseIP(addr)
 		if ip != nil {
-			w.Logger.Infof("Got LoadBalancer IP %s for Traefik", ip)
+			w.logger.Infof("Got LoadBalancer IP %s for Traefik", ip)
 			return true, nil
 		}
 		return false, fmt.Errorf("no valid IP yet: %q", addr)
@@ -74,7 +78,7 @@ func (w *Waiter) WaitForDNSPropagation() error {
 		return err
 	}
 
-	return util.Poll(nil, w.Logger, func() (bool, error) {
+	return util.Poll(nil, w.logger, func() (bool, error) {
 		prefixes := []string{""} // "dashboard"
 		for _, prefix := range prefixes {
 			domain := w.Domain()
@@ -84,7 +88,7 @@ func (w *Waiter) WaitForDNSPropagation() error {
 			if err := domainMatches(domain, ip); err != nil {
 				return false, err
 			}
-			w.Logger.Infof("%s now resolves to %s, as expected", domain, ip)
+			w.logger.Infof("%s now resolves to %s, as expected", domain, ip)
 		}
 
 		return true, nil
@@ -120,11 +124,11 @@ func (w *Waiter) WaitForTLSSetup() error {
 	if err != nil {
 		return err
 	}
-	w.Logger.Infof("Restarted traefik")
+	w.logger.Infof("Restarted traefik")
 	return nil
 	/*
 		TODO: Maybe verify somehow that we can connect to the endpoint(s) correctly.
-		return util.Poll(nil, w.Logger, func() (bool, error) {
+		return util.Poll(nil, w.logger, func() (bool, error) {
 			_, err := http.Get(w.Domain())
 			return (err == nil), err
 		}, w.dryrun)

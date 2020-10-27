@@ -1,11 +1,14 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"sync"
 
+	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	"github.com/fluxcd/go-git-providers/gitprovider"
 	"github.com/sirupsen/logrus"
@@ -93,8 +96,9 @@ func (c *Config) Complete() error {
 			{
 				Instances: 1,
 				NodeClaim: NodeClaim{
-					CPU: 2,
-					RAM: 4,
+					CPU:       2,
+					RAM:       4,
+					Dedicated: false,
 				},
 			},
 		}
@@ -144,6 +148,8 @@ type NodeGroup struct {
 type NodeClaim struct {
 	CPU uint16 `json:"cpus"`
 	RAM uint16 `json:"ram"`
+	// Refers to if the CPU is shared with other tenants, or dedicated for this VM
+	Dedicated bool `json:"dedicated"`
 }
 
 type ClusterLogin struct {
@@ -167,7 +173,6 @@ type ClusterInfo struct {
 	*Config
 	Index    ClusterNumber
 	Password string
-	Logger   *logrus.Entry
 }
 
 func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
@@ -179,23 +184,19 @@ func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
 			panic(err)
 		}
 	}
-	return &ClusterInfo{cfg, i, pass, i.NewLogger()}
-}
-
-func (c *ClusterInfo) KubeConfigPath() string {
-	return fmt.Sprintf("clusters/%s/.kubeconfig", c.Index)
+	return &ClusterInfo{cfg, i, pass}
 }
 
 func (c *ClusterInfo) ClusterDir() string {
-	return fmt.Sprintf("clusters/%s", c.Index)
+	return filepath.Join(constants.ClustersDir, c.Index.String())
 }
 
-func (c *ClusterInfo) Subdomain() string {
-	return fmt.Sprintf("cluster-%s", c.Index)
+func (c *ClusterInfo) KubeConfigPath() string {
+	return filepath.Join(c.ClusterDir(), constants.KubeconfigFile)
 }
 
 func (c *ClusterInfo) Domain() string {
-	return fmt.Sprintf("%s.%s", c.Subdomain(), c.RootDomain)
+	return c.Index.Domain(c.RootDomain)
 }
 
 func (c *ClusterInfo) BasicAuth() string {
@@ -214,11 +215,15 @@ func (n ClusterNumber) String() string {
 	return fmt.Sprintf("%02d", n)
 }
 
-func (n ClusterNumber) NewLogger() *logrus.Entry {
-	return logrus.WithField("cluster", n)
+func (n ClusterNumber) Subdomain() string {
+	return fmt.Sprintf("cluster-%s", n)
 }
 
-func ForCluster(n uint16, cfg *Config, fn func(*ClusterInfo) error) error {
+func (n ClusterNumber) Domain(rootDomain string) string {
+	return fmt.Sprintf("%s.%s", n.Subdomain(), rootDomain)
+}
+
+func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Context, *ClusterInfo) error) error {
 	logrus.Debugf("Running function for all %d clusters", n)
 
 	wg := &sync.WaitGroup{}
@@ -226,13 +231,15 @@ func ForCluster(n uint16, cfg *Config, fn func(*ClusterInfo) error) error {
 	foundErr := false
 	for i := ClusterNumber(1); i <= ClusterNumber(n); i++ {
 		go func(j ClusterNumber) {
-			logrus.Tracef("ForCluster goroutine with index %s starting...", j)
+			clusterCtx := util.WithClusterNumber(ctx, uint16(j))
+			logger := util.Logger(clusterCtx)
+			logger.Tracef("ForCluster goroutine starting...")
 			clusterInfo := NewClusterInfo(cfg, j)
-			if err := fn(clusterInfo); err != nil {
-				clusterInfo.Logger.Error(err)
+			if err := fn(ctx, clusterInfo); err != nil {
+				logger.Error(err)
 				foundErr = true
 			}
-			logrus.Tracef("ForCluster goroutine with index %s is done", j)
+			logger.Tracef("ForCluster goroutine is done")
 			wg.Done()
 		}(i)
 	}
