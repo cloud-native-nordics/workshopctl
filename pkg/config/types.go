@@ -60,7 +60,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) Complete() error {
+func (c *Config) Complete(ctx context.Context) error {
 	if c.CloudProvider.Name == "" {
 		c.CloudProvider.Name = "digitalocean"
 	}
@@ -104,7 +104,7 @@ func (c *Config) Complete() error {
 		}
 	}
 	if c.GitRepo == "" {
-		origin, err := util.ExecuteCommand("/bin/sh", "-c", fmt.Sprintf(`git -C %s remote -v | grep push | grep origin | awk '{print $2}'`, c.RootDir))
+		origin, _, err := util.ShellCommand(ctx, `git -C %s remote -v | grep push | grep origin | awk '{print $2}'`, c.RootDir).Run()
 		if err != nil {
 			return err
 		}

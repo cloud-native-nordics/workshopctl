@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -37,17 +38,18 @@ func NewInitCommand(rf *RootFlags) *cobra.Command {
 func addInitFlags(fs *pflag.FlagSet, inf *InitFlags) {}
 
 func RunInit(inf *InitFlags) error {
+	ctx := util.NewContext(inf.DryRun)
 	if util.FileExists(inf.ConfigPath) {
 		return nil
 	}
 	cfg := &config.Config{}
-	if err := initConfig(cfg); err != nil {
+	if err := initConfig(ctx, cfg); err != nil {
 		return err
 	}
-	return util.WriteYAMLFile(inf.ConfigPath, cfg)
+	return util.WriteYAMLFile(ctx, inf.ConfigPath, cfg)
 }
 
-func initConfig(cfg *config.Config) error {
+func initConfig(ctx context.Context, cfg *config.Config) error {
 	if !filepath.IsAbs(cfg.RootDir) { // TODO: This probably doesn't work yet
 		wd, err := os.Getwd()
 		if err != nil {
@@ -55,8 +57,5 @@ func initConfig(cfg *config.Config) error {
 		}
 		cfg.RootDir = filepath.Join(wd, cfg.RootDir)
 	}
-	if err := cfg.Complete(); err != nil {
-		return err
-	}
-	return nil
+	return cfg.Complete(ctx)
 }

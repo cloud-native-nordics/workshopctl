@@ -16,9 +16,9 @@ import (
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-func NewDigitalOceanDNSProvider(ctx context.Context, p *config.Provider, rootDomain string, dryrun bool) (provider.DNSProvider, error) {
+func NewDigitalOceanDNSProvider(ctx context.Context, p *config.Provider, rootDomain string) (provider.DNSProvider, error) {
 	return &DigitalOceanDNSProvider{
-		doCommon:   initCommon(ctx, p, dryrun),
+		doCommon:   initCommon(ctx, p),
 		rootDomain: rootDomain,
 	}, nil
 }
@@ -94,7 +94,7 @@ var (
 
 type dnsProcessor struct{}
 
-func (pr *dnsProcessor) Process(cd *gen.ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
+func (pr *dnsProcessor) Process(ctx context.Context, cd *gen.ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
 	return util.KYAMLFilter(r, w, util.KYAMLFilterFunc(
 		func(node *kyaml.RNode) (*kyaml.RNode, error) {
 			return node, util.KYAMLResourceMetaMatcher(node, util.KYAMLResourceMetaMatch{

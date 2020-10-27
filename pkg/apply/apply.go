@@ -3,7 +3,6 @@ package apply
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"strings"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
@@ -12,23 +11,22 @@ import (
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
-	"github.com/sirupsen/logrus"
 )
 
-func Apply(ctx context.Context, cfg *config.Config, dryrun bool) error {
+func Apply(ctx context.Context, cfg *config.Config) error {
 	// TODO: Enforce that gen is up-to-date
 
-	cp, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider, dryrun)
+	cp, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider)
 	if err != nil {
 		return err
 	}
 
 	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
-		return ApplyCluster(clusterCtx, clusterInfo, cp, dryrun)
+		return ApplyCluster(clusterCtx, clusterInfo, cp)
 	})
 }
 
-func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
+func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider) error {
 	logger := util.Logger(ctx)
 
 	// Add some kind of mark at the end of this procedure in the cluster to say that it's
@@ -38,7 +36,7 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 	kubeconfigPath := clusterInfo.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
 		logger.Info("Provisioning the Kubernetes cluster")
-		if err := provisionCluster(ctx, clusterInfo, p, dryrun); err != nil {
+		if err := provisionCluster(ctx, clusterInfo, p); err != nil {
 			return err
 		}
 	} else {
@@ -46,11 +44,11 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 	}
 
 	localKubectl := func() *kubectlExecer {
-		return kubectl(kubeconfigPath, dryrun).WithNS(constants.WorkshopctlNamespace)
+		return kubectl(ctx, kubeconfigPath).WithNS(constants.WorkshopctlNamespace)
 	}
 
 	logger.Info("Applying workshopctl Namespace")
-	if _, err := kubectl(kubeconfigPath, dryrun).
+	if _, err := kubectl(ctx, kubeconfigPath).
 		Create("namespace", "", constants.WorkshopctlNamespace, true, false).
 		Run(); err != nil {
 		return err
@@ -81,10 +79,10 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 	}
 
 	// Wait for the cluster to be healthy
-	return NewWaiter(ctx, clusterInfo, dryrun).WaitForAll()
+	return NewWaiter(ctx, clusterInfo).WaitForAll()
 }
 
-func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider, dryrun bool) error {
+func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider) error {
 	logger := util.Logger(ctx)
 
 	logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
@@ -96,21 +94,18 @@ func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p pr
 	if err != nil {
 		return fmt.Errorf("encountered an error while creating clusters: %v", err)
 	}
-	if dryrun {
-		return nil
-	}
 
 	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name, cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
 	util.DebugObject("Returned cluster object", *cluster)
 
 	kubeconfigPath := clusterInfo.KubeConfigPath()
 	logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
-	return ioutil.WriteFile(kubeconfigPath, cluster.Status.KubeconfigBytes, 0600)
+	return util.WriteFile(ctx, kubeconfigPath, cluster.Status.KubeconfigBytes)
 }
 
 type kubectlExecer struct {
+	ctx            context.Context
 	kubeConfigPath string
-	dryRun         bool
 
 	namespace string
 	args      []string
@@ -120,10 +115,10 @@ type kubectlExecer struct {
 	ignoreErrors []string
 }
 
-func kubectl(kubeConfigPath string, dryRun bool) *kubectlExecer {
+func kubectl(ctx context.Context, kubeConfigPath string) *kubectlExecer {
 	return &kubectlExecer{
+		ctx:            ctx,
 		kubeConfigPath: kubeConfigPath,
-		dryRun:         dryRun,
 	}
 }
 
@@ -154,7 +149,7 @@ func (e *kubectlExecer) Create(kind, subkind, name string, ignoreExists, recreat
 		e.ignoreErrors = append(e.ignoreErrors, "AlreadyExists")
 	}
 	if recreate {
-		_, err := kubectl(e.kubeConfigPath, e.dryRun).
+		_, err := kubectl(e.ctx, e.kubeConfigPath).
 			WithNS(e.namespace).
 			WithArgs("delete", kind, name).
 			Run()
@@ -175,15 +170,8 @@ func (e *kubectlExecer) Run() (string, error) {
 		kubectlArgs = append(kubectlArgs, []string{"-n", e.namespace}...)
 	}
 	kubectlArgs = append(kubectlArgs, e.args...)
-	if e.dryRun {
-		logrus.Infof("Would run kubectl command: 'kubectl %s'", strings.Join(kubectlArgs, " "))
-		if len(e.files) > 0 {
-			logrus.Infof("Would send files: %v", e.files)
-		}
-		return "", nil
-	}
 
-	out, err := util.ExecuteCommand("kubectl", kubectlArgs...)
+	out, _, err := util.Command(e.ctx, "kubectl", kubectlArgs...).Run()
 	for _, ignored := range e.ignoreErrors {
 		if strings.Contains(out, ignored) {
 			return out, nil

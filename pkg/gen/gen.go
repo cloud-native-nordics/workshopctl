@@ -27,10 +27,10 @@ type ChartData struct {
 }
 
 type Processor interface {
-	Process(cd *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error
+	Process(ctx context.Context, cd *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error
 }
 
-func SetupInternalChartCache(rootPath string) ([]*ChartData, error) {
+func SetupInternalChartCache(ctx context.Context, rootPath string) ([]*ChartData, error) {
 	// Restore built-in charts/* to .cache/*
 	if err := charts.RestoreAssets(filepath.Join(rootPath, constants.CacheDir), ""); err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func SetupInternalChartCache(rootPath string) ([]*ChartData, error) {
 	// process them exactly as normal "external" charts
 	chartCache := make([]*ChartData, 0, len(charts))
 	for _, chart := range charts {
-		cd, err := SetupExternalChartCache(rootPath, chart)
+		cd, err := SetupExternalChartCache(ctx, rootPath, chart)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func SetupInternalChartCache(rootPath string) ([]*ChartData, error) {
 	return chartCache, nil
 }
 
-func SetupExternalChartCache(rootPath, chartName string) (*ChartData, error) {
+func SetupExternalChartCache(ctx context.Context, rootPath, chartName string) (*ChartData, error) {
 	cd := &ChartData{
 		CacheDir:    filepath.Join(rootPath, constants.CacheDir, chartName),
 		Name:        chartName,
@@ -86,7 +86,7 @@ func SetupExternalChartCache(rootPath, chartName string) (*ChartData, error) {
 
 	// Download the chart if it's explicitely said to be external
 	if externalChartFile, ok := cd.CopiedFiles[constants.ExternalChartFile]; ok {
-		if err := downloadChart(rootPath, externalChartFile); err != nil {
+		if err := downloadChart(ctx, rootPath, externalChartFile); err != nil {
 			return nil, err
 		}
 	}
@@ -94,7 +94,7 @@ func SetupExternalChartCache(rootPath, chartName string) (*ChartData, error) {
 	return cd, nil
 }
 
-func downloadChart(rootPath, externalChartFile string) error {
+func downloadChart(ctx context.Context, rootPath, externalChartFile string) error {
 	// Read contents of the external-chart file
 	b, err := ioutil.ReadFile(externalChartFile)
 	if err != nil {
@@ -119,14 +119,14 @@ func downloadChart(rootPath, externalChartFile string) error {
 		externalChart = filepath.Join(crepo, cname)
 
 		// Make sure the repo is registered correctly
-		out, err := util.ExecuteCommand("helm", "repo", "list")
+		out, _, err := util.Command(ctx, "helm", "repo", "list").Run()
 		if err != nil {
 			return err
 		}
 		// Only add the repo if it doesn't already exist
 		if !strings.Contains(out, crepo) {
 			log.Infof("Adding a new helm repo called %q pointing to %q", crepo, u.String())
-			_, err = util.ExecuteCommand("helm", "repo", "add", crepo, u.String())
+			_, _, err = util.Command(ctx, "helm", "repo", "add", crepo, u.String()).Run()
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func downloadChart(rootPath, externalChartFile string) error {
 	log.Infof("Found external chart to download %q", externalChart)
 	// This extracts the chart to e.g. .cache/kubernetes-dashboard/{Chart.yaml,values.yaml,templates}
 	cacheDir := filepath.Join(rootPath, constants.CacheDir)
-	_, err = util.ExecuteCommand("helm", "fetch", externalChart, "--untar", "--untardir", cacheDir)
+	_, _, err = util.Command(ctx, "helm", "fetch", externalChart, "--untar", "--untardir", cacheDir).Run()
 	return err
 }
 
@@ -188,7 +188,7 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 	output := new(bytes.Buffer)
 	for i, processor := range processorChain {
 		logger.Tracef("Before processor %d: %s", i, input.String())
-		if err := processor.Process(cd, p, input, output); err != nil {
+		if err := processor.Process(ctx, cd, p, input, output); err != nil {
 			logger.Errorf("error: %v, output: %s", err, output.String())
 			return err
 		}
@@ -217,7 +217,7 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 
 type addParamsToValues struct{}
 
-func (pr *addParamsToValues) Process(_ *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
+func (pr *addParamsToValues) Process(ctx context.Context, _ *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
 	if _, err := io.Copy(w, r); err != nil {
 		return err
 	}
@@ -236,14 +236,17 @@ type helmTemplateProcessor struct {
 	namespace string
 }
 
-func (pr *helmTemplateProcessor) Process(cd *ChartData, _ *keyval.Parameters, r io.Reader, w io.Writer) error {
-	return util.ExecPipe(r, w, cd.CacheDir, "/bin/sh", "-c",
-		fmt.Sprintf("helm template -n %s workshopctl . -f -", pr.namespace))
+func (pr *helmTemplateProcessor) Process(ctx context.Context, cd *ChartData, _ *keyval.Parameters, r io.Reader, w io.Writer) error {
+	_, _, err := util.ShellCommand(ctx, `helm template -n %s workshopctl . -f -`, pr.namespace).
+		WithStdio(r, w, nil).
+		WithPwd(cd.CacheDir).
+		Run()
+	return err
 }
 
 type unescapeGoTmpls struct{}
 
-func (pr *unescapeGoTmpls) Process(_ *ChartData, _ *keyval.Parameters, r io.Reader, w io.Writer) error {
+func (pr *unescapeGoTmpls) Process(ctx context.Context, _ *ChartData, _ *keyval.Parameters, r io.Reader, w io.Writer) error {
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err

@@ -19,9 +19,9 @@ func DNSProviders() provider.DNSProviderFactory {
 
 var providers = providersImpl{}
 
-type cloudFunc func(ctx context.Context, p *config.Provider, dryRun bool) (provider.CloudProvider, error)
+type cloudFunc func(ctx context.Context, p *config.Provider) (provider.CloudProvider, error)
 
-type dnsFunc func(ctx context.Context, p *config.Provider, rootDomain string, dryRun bool) (provider.DNSProvider, error)
+type dnsFunc func(ctx context.Context, p *config.Provider, rootDomain string) (provider.DNSProvider, error)
 
 var cloudProviders = map[string]cloudFunc{
 	"digitalocean": digitalocean.NewDigitalOceanCloudProvider,
@@ -33,18 +33,18 @@ var dnsProviders = map[string]dnsFunc{
 
 type providersImpl struct{}
 
-func (providersImpl) NewCloudProvider(ctx context.Context, p *config.Provider, dryrun bool) (provider.CloudProvider, error) {
+func (providersImpl) NewCloudProvider(ctx context.Context, p *config.Provider) (provider.CloudProvider, error) {
 	fn, ok := cloudProviders[p.Name]
 	if !ok {
 		return nil, fmt.Errorf("cloud provider %s not supported", p.Name)
 	}
-	return fn(ctx, p, dryrun)
+	return fn(ctx, p)
 }
 
-func (providersImpl) NewDNSProvider(ctx context.Context, p *config.Provider, rootDomain string, dryrun bool) (provider.DNSProvider, error) {
+func (providersImpl) NewDNSProvider(ctx context.Context, p *config.Provider, rootDomain string) (provider.DNSProvider, error) {
 	fn, ok := dnsProviders[p.Name]
 	if !ok {
 		return nil, fmt.Errorf("DNS provider %s not supported", p.Name)
 	}
-	return fn(ctx, p, rootDomain, dryrun)
+	return fn(ctx, p, rootDomain)
 }

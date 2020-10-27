@@ -16,16 +16,14 @@ type Waiter struct {
 	*config.ClusterInfo
 	ctx    context.Context
 	logger *logrus.Entry
-	dryrun bool
 }
 
-func NewWaiter(ctx context.Context, info *config.ClusterInfo, dryrun bool) *Waiter {
-	// TODO: Make dry-run a context-scoped variable
-	return &Waiter{info, ctx, util.Logger(ctx), dryrun}
+func NewWaiter(ctx context.Context, info *config.ClusterInfo) *Waiter {
+	return &Waiter{info, ctx, util.Logger(ctx)}
 }
 
 func (w *Waiter) kubectl() *kubectlExecer {
-	return kubectl(w.KubeConfigPath(), w.dryrun).WithNS(constants.WorkshopctlNamespace)
+	return kubectl(w.ctx, w.KubeConfigPath()).WithNS(constants.WorkshopctlNamespace)
 }
 
 type waitFn func() error
@@ -50,19 +48,19 @@ func (w *Waiter) WaitForAll() error {
 }
 
 func (w *Waiter) WaitForDeployments() error {
-	return util.Poll(nil, w.logger, func() (bool, error) {
+	return util.Poll(w.ctx, nil, func() (bool, error) {
 		// Wait 30s using kubectl until the "global" Poll timeout is reached
 		_, err := w.kubectl().WithArgs("wait", "deployment", "--for=condition=Available", "--all", "--timeout=30s").Run()
 		if err != nil {
 			return false, err
 		}
 		return true, nil
-	}, w.dryrun)
+	})
 }
 
 func (w *Waiter) WaitForDNSPropagation() error {
 	var ip net.IP
-	err := util.Poll(nil, w.logger, func() (bool, error) {
+	err := util.Poll(w.ctx, nil, func() (bool, error) {
 		addr, err := w.kubectl().WithArgs("get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`).Run()
 		if err != nil {
 			return false, err
@@ -73,12 +71,12 @@ func (w *Waiter) WaitForDNSPropagation() error {
 			return true, nil
 		}
 		return false, fmt.Errorf("no valid IP yet: %q", addr)
-	}, w.dryrun)
+	})
 	if err != nil {
 		return err
 	}
 
-	return util.Poll(nil, w.logger, func() (bool, error) {
+	return util.Poll(w.ctx, nil, func() (bool, error) {
 		prefixes := []string{""} // "dashboard"
 		for _, prefix := range prefixes {
 			domain := w.Domain()
@@ -92,7 +90,7 @@ func (w *Waiter) WaitForDNSPropagation() error {
 		}
 
 		return true, nil
-	}, w.dryrun)
+	})
 }
 
 func domainMatches(domain string, expectedIP net.IP) error {

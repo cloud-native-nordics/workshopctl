@@ -45,12 +45,12 @@ func addGenFlags(fs *pflag.FlagSet, gf *GenFlags) {
 	fs.BoolVar(&gf.SkipLocalCharts, "skip-local-charts", gf.SkipLocalCharts, "Don't consider the local directory's charts/ directory")
 }
 
-func loadConfig(configPath string) (*config.Config, error) {
+func loadConfig(ctx context.Context, configPath string) (*config.Config, error) {
 	cfg := &config.Config{}
 	if err := util.ReadYAMLFile(configPath, cfg); err != nil {
 		return nil, err
 	}
-	if err := initConfig(cfg); err != nil {
+	if err := initConfig(ctx, cfg); err != nil {
 		return nil, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -60,13 +60,13 @@ func loadConfig(configPath string) (*config.Config, error) {
 }
 
 func RunGen(gf *GenFlags) error {
-	ctx := context.Background()
-	cfg, err := loadConfig(gf.ConfigPath)
+	ctx := util.NewContext(gf.DryRun)
+	cfg, err := loadConfig(ctx, gf.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	charts, err := gen.SetupInternalChartCache(cfg.RootDir)
+	charts, err := gen.SetupInternalChartCache(ctx, cfg.RootDir)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func RunGen(gf *GenFlags) error {
 			if !chartInfo.IsDir() {
 				continue
 			}
-			chart, err := gen.SetupExternalChartCache(cfg.RootDir, chartInfo.Name())
+			chart, err := gen.SetupExternalChartCache(ctx, cfg.RootDir, chartInfo.Name())
 			if err != nil {
 				return err
 			}
@@ -89,8 +89,9 @@ func RunGen(gf *GenFlags) error {
 		}
 	}
 
-	// dry-run can be always true here as we're not gonna use the provider for requests
-	dnsProvider, err := providers.DNSProviders().NewDNSProvider(ctx, cfg.DNSProvider, cfg.RootDomain, true)
+	// dry-run can be always true here as we're not gonna use the provider for requests, only manifest gen
+	dnsCtx := util.WithDryRun(ctx, true)
+	dnsProvider, err := providers.DNSProviders().NewDNSProvider(dnsCtx, cfg.DNSProvider, cfg.RootDomain)
 	if err != nil {
 		return err
 	}

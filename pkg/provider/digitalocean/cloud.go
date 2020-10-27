@@ -28,18 +28,18 @@ type doCommon struct {
 	dryRun bool
 }
 
-func initCommon(ctx context.Context, p *config.Provider, dryRun bool) doCommon {
+func initCommon(ctx context.Context, p *config.Provider) doCommon {
 	oauthClient := oauth2.NewClient(ctx, p.TokenSource())
 	return doCommon{
 		p:      p,
 		c:      godo.NewClient(oauthClient),
-		dryRun: dryRun,
+		dryRun: util.IsDryRun(ctx),
 	}
 }
 
-func NewDigitalOceanCloudProvider(ctx context.Context, p *config.Provider, dryRun bool) (provider.CloudProvider, error) {
+func NewDigitalOceanCloudProvider(ctx context.Context, p *config.Provider) (provider.CloudProvider, error) {
 	doProvider := &DigitalOceanCloudProvider{
-		doCommon: initCommon(ctx, p, dryRun),
+		doCommon: initCommon(ctx, p),
 		region:   DefaultRegion,
 	}
 
@@ -138,7 +138,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, i config
 		cluster.Status.ID = doCluster.ID
 	}
 
-	err = util.Poll(nil, logger, func() (bool, error) {
+	err = util.Poll(ctx, nil, func() (bool, error) {
 		kcluster, _, err := do.c.Kubernetes.Get(ctx, cluster.Status.ID)
 		if err != nil {
 			return false, fmt.Errorf("getting a kubernetes cluster failed: %v", err)
@@ -164,13 +164,13 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, i config
 		}
 
 		return false, fmt.Errorf("Unknown state %q! Message: %q", kcluster.Status.State, kcluster.Status.Message)
-	}, do.dryRun)
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	log.Infof("Downloading KubeConfig...")
-	cc, _, err := do.c.Kubernetes.GetKubeConfig(context.Background(), cluster.Status.ID)
+	cc, _, err := do.c.Kubernetes.GetKubeConfig(ctx, cluster.Status.ID)
 	if err != nil {
 		return nil, err
 	}

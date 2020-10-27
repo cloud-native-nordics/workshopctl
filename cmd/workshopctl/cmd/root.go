@@ -15,6 +15,7 @@ type RootFlags struct {
 	LogLevel   logrus.Level
 	ConfigPath string
 	RootDir    string
+	DryRun     bool
 }
 
 // NewWorkshopCtlCommand returns the root command for workshopctl
@@ -23,6 +24,7 @@ func NewWorkshopCtlCommand() *cobra.Command {
 		LogLevel:   logrus.InfoLevel,
 		ConfigPath: "workshopctl.yaml",
 		RootDir:    ".",
+		DryRun:     true,
 	}
 	root := &cobra.Command{
 		Use:   "workshopctl",
@@ -47,4 +49,5 @@ func addGlobalFlags(fs *pflag.FlagSet, rf *RootFlags) {
 	logflag.LogLevelFlagVar(fs, &rf.LogLevel)
 	fs.StringVar(&rf.RootDir, "root-dir", rf.RootDir, "Where the workshopctl directory is. Must be a Git repo.")
 	fs.StringVar(&rf.ConfigPath, "config-path", rf.ConfigPath, "Where to find the config file")
+	fs.BoolVar(&rf.DryRun, "dry-run", rf.DryRun, "Whether to apply the selected operation, or just print what would happen (to dry-run)")
 }

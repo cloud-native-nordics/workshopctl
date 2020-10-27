@@ -32,7 +32,7 @@ type ClusterStatus struct {
 }
 
 type CloudProviderFactory interface {
-	NewCloudProvider(ctx context.Context, p *config.Provider, dryrun bool) (CloudProvider, error)
+	NewCloudProvider(ctx context.Context, p *config.Provider) (CloudProvider, error)
 }
 
 type CloudProvider interface {
@@ -43,7 +43,7 @@ type CloudProvider interface {
 }
 
 type DNSProviderFactory interface {
-	NewDNSProvider(ctx context.Context, p *config.Provider, rootDomain string, dryrun bool) (DNSProvider, error)
+	NewDNSProvider(ctx context.Context, p *config.Provider, rootDomain string) (DNSProvider, error)
 }
 
 type DNSProvider interface {
