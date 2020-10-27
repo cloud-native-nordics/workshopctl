@@ -1,33 +1,36 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 )
 
 type Waiter struct {
 	*config.ClusterInfo
+	dryrun bool
 }
 
-func NewWaiter(info *config.ClusterInfo) *Waiter {
-	return &Waiter{info}
+func NewWaiter(info *config.ClusterInfo, dryrun bool) *Waiter {
+	return &Waiter{info, dryrun}
 }
 
-func (w *Waiter) execKubectl(args ...string) (string, error) {
-	return execKubectl(w.KubeConfigPath(), args...)
+func (w *Waiter) kubectl() *kubectlExecer {
+	return kubectl(w.KubeConfigPath(), w.dryrun).WithNS(constants.WorkshopctlNamespace)
 }
 
 type waitFn func() error
 
 func (w *Waiter) WaitForAll() error {
 	fns := map[string]waitFn{
-		"deployments to be Ready":        w.WaitForDeployments,
-		"DNS to have propagated":         w.WaitForDNSPropagation,
-		"TLS certs to have been created": w.WaitForTLSSetup,
+		"deployments to be Ready": w.WaitForDeployments,
+		"DNS to have propagated":  w.WaitForDNSPropagation,
+		//"TLS certs to have been created": w.WaitForTLSSetup,
 	}
 	for desc, fn := range fns {
 		msg := fmt.Sprintf("Waiting for %s", desc)
@@ -45,18 +48,18 @@ func (w *Waiter) WaitForAll() error {
 func (w *Waiter) WaitForDeployments() error {
 	return util.Poll(nil, w.Logger, func() (bool, error) {
 		// Wait 30s using kubectl until the "global" Poll timeout is reached
-		_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=30s")
+		_, err := w.kubectl().WithArgs("wait", "deployment", "--for=condition=Available", "--all", "--timeout=30s").Run()
 		if err != nil {
 			return false, err
 		}
 		return true, nil
-	})
+	}, w.dryrun)
 }
 
 func (w *Waiter) WaitForDNSPropagation() error {
 	var ip net.IP
 	err := util.Poll(nil, w.Logger, func() (bool, error) {
-		addr, err := w.execKubectl("-n", "workshopctl", "get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`)
+		addr, err := w.kubectl().WithArgs("get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`).Run()
 		if err != nil {
 			return false, err
 		}
@@ -66,13 +69,13 @@ func (w *Waiter) WaitForDNSPropagation() error {
 			return true, nil
 		}
 		return false, fmt.Errorf("no valid IP yet: %q", addr)
-	})
+	}, w.dryrun)
 	if err != nil {
 		return err
 	}
 
 	return util.Poll(nil, w.Logger, func() (bool, error) {
-		prefixes := []string{"", "dashboard"}
+		prefixes := []string{""} // "dashboard"
 		for _, prefix := range prefixes {
 			domain := w.Domain()
 			if len(prefix) > 0 {
@@ -85,17 +88,26 @@ func (w *Waiter) WaitForDNSPropagation() error {
 		}
 
 		return true, nil
-	})
+	}, w.dryrun)
 }
 
 func domainMatches(domain string, expectedIP net.IP) error {
-	ips, err := net.LookupIP(domain)
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Millisecond * time.Duration(10000),
+			}
+			return d.DialContext(ctx, "udp", "1.1.1.1:53")
+		},
+	}
+	ips, err := r.LookupIPAddr(context.Background(), domain)
 	if err != nil {
 		return fmt.Errorf("Domain lookup error for %q: %v", domain, err)
 	}
 	// look for the right IP
 	for _, addr := range ips {
-		if addr.String() == expectedIP.String() {
+		if addr.IP.String() == expectedIP.String() {
 			return nil
 		}
 	}
@@ -104,7 +116,7 @@ func domainMatches(domain string, expectedIP net.IP) error {
 
 func (w *Waiter) WaitForTLSSetup() error {
 	// TODO: Somehow verify if Traefik already has got the TLS cert
-	_, err := w.execKubectl("-n", "workshopctl", "delete", "pod", "-l=app=traefik")
+	_, err := w.kubectl().WithArgs("delete", "pod", "-l=app=traefik").Run()
 	if err != nil {
 		return err
 	}
@@ -115,6 +127,6 @@ func (w *Waiter) WaitForTLSSetup() error {
 		return util.Poll(nil, w.Logger, func() (bool, error) {
 			_, err := http.Get(w.Domain())
 			return (err == nil), err
-		})
+		}, w.dryrun)
 	*/
 }

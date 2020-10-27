@@ -6,12 +6,8 @@ import (
 	"time"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/gen"
 )
-
-type NodeSize struct {
-	CPUs uint16
-	RAM  uint16
-}
 
 type Cluster struct {
 	Spec   ClusterSpec
@@ -19,10 +15,9 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	NodeSize  NodeSize
-	NodeCount uint16
-	Name      string
-	Version   string
+	Name       string
+	Version    string
+	NodeGroups []config.NodeGroup
 }
 
 type ClusterStatus struct {
@@ -35,9 +30,15 @@ type ClusterStatus struct {
 	KubeconfigBytes []byte
 }
 
-type ProviderFunc func(*config.ServiceAccount, bool) Provider
+// TODO: Make a proper factory of this instead in sub-package providers/
+type CloudProviderFunc func(*config.Provider, bool) CloudProvider
 
-type Provider interface {
+type CloudProvider interface {
 	// CreateCluster creates a cluster. This call is _blocking_ until the cluster is properly provisioned
 	CreateCluster(index config.ClusterNumber, c ClusterSpec) (*Cluster, error)
+}
+
+type DNSProvider interface {
+	ChartProcessors() []gen.Processor
+	ValuesProcessors() []gen.Processor
 }

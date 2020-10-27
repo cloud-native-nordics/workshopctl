@@ -18,39 +18,39 @@ import (
 
 const Region = "fra1"
 
-func NewDigitalOceanProvider(sa *config.ServiceAccount, dryRun bool) provider.Provider {
-	p := &DigitalOceanProvider{
-		sa:     sa,
+func NewDigitalOceanCloudProvider(p *config.Provider, dryRun bool) provider.CloudProvider {
+	doProvider := &DigitalOceanCloudProvider{
+		p:      p,
 		dryRun: dryRun,
 	}
-	oauthClient := oauth2.NewClient(context.Background(), sa)
-	p.c = godo.NewClient(oauthClient)
-	return p
+	oauthClient := oauth2.NewClient(context.Background(), p.TokenSource())
+	doProvider.c = godo.NewClient(oauthClient)
+	return doProvider
 }
 
-type DigitalOceanProvider struct {
-	sa     *config.ServiceAccount
+type DigitalOceanCloudProvider struct {
+	p      *config.Provider
 	c      *godo.Client
 	dryRun bool
 }
 
-func chooseSize(s provider.NodeSize) string {
-	m := map[provider.NodeSize]string{
-		{CPUs: 1, RAM: 2}:  "s-1vcpu-2gb",
-		{CPUs: 1, RAM: 3}:  "s-1vcpu-3gb",
-		{CPUs: 2, RAM: 2}:  "s-2vcpu-2gb",
-		{CPUs: 2, RAM: 4}:  "s-2vcpu-4gb",
-		{CPUs: 4, RAM: 8}:  "s-4vcpu-8gb",
-		{CPUs: 6, RAM: 16}: "s-6vcpu-16gb",
+func chooseSize(c config.NodeClaim) string {
+	m := map[config.NodeClaim]string{
+		{CPU: 1, RAM: 2}:  "s-1vcpu-2gb",
+		{CPU: 1, RAM: 3}:  "s-1vcpu-3gb",
+		{CPU: 2, RAM: 2}:  "s-2vcpu-2gb",
+		{CPU: 2, RAM: 4}:  "s-2vcpu-4gb",
+		{CPU: 4, RAM: 8}:  "s-4vcpu-8gb",
+		{CPU: 6, RAM: 16}: "s-6vcpu-16gb",
 	}
-	if str, ok := m[s]; ok {
+	if str, ok := m[c]; ok {
 		return str
 	}
 	log.Warnf("didn't find a good size for you, fallback to s-1vcpu-2gb")
 	return "s-1vcpu-2gb"
 }
 
-func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider.ClusterSpec) (*provider.Cluster, error) {
+func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c provider.ClusterSpec) (*provider.Cluster, error) {
 	logger := i.NewLogger()
 
 	start := time.Now().UTC()
@@ -66,8 +66,8 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 	nodePool := []*godo.KubernetesNodePoolCreateRequest{
 		{
 			Name:      nodePoolName,
-			Size:      chooseSize(c.NodeSize),
-			Count:     int(c.NodeCount),
+			Size:      chooseSize(c.NodeGroups[0].NodeClaim), // TODO
+			Count:     int(c.NodeGroups[0].Instances),
 			AutoScale: false,
 			Tags: []string{
 				"workshopctl",
@@ -143,7 +143,7 @@ func (do *DigitalOceanProvider) CreateCluster(i config.ClusterNumber, c provider
 		}
 
 		return false, fmt.Errorf("Unknown state %q! Message: %q", kcluster.Status.State, kcluster.Status.Message)
-	})
+	}, do.dryRun)
 	if err != nil {
 		return nil, err
 	}
