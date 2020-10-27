@@ -10,8 +10,20 @@ build: $(BINARIES)
 $(BINARIES):
 	make shell COMMAND="make bin/$@"
 
+generated: /go/bin/go-bindata
+	# This autogenerates the file ./pkg/charts/charts.go from manifests in the ./charts directory
+	# The package name of ./pkg/charts is charts, and the "charts" prefix is stripped from the beginning
+	# of the file name path within the application.
+	# The modification time is hardcoded to 2020-01-01 00:00:00
+	go-bindata \
+		-pkg=charts \
+		-o=pkg/charts/charts.go \
+		-modtime=1577836800 \
+		-prefix=charts \
+		charts/...
+
 .PHONY: bin/workshopctl
-bin/workshopctl: bin/%: node_modules
+bin/workshopctl: bin/%: node_modules generated
 	CGO_ENABLED=0 go build -ldflags "$(shell ./hack/ldflags.sh)" -o bin/$* ./cmd/$*
 
 shell:
@@ -33,6 +45,9 @@ tidy: /go/bin/goimports
 	gofmt -s -w pkg cmd
 	goimports -w pkg cmd
 	go run hack/cobra.go
+
+/go/bin/go-bindata:
+	go get -u github.com/go-bindata/go-bindata/...
 
 /go/bin/goimports:
 	go get golang.org/x/tools/cmd/goimports
