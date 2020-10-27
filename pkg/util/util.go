@@ -210,3 +210,27 @@ func KYAMLResourceMetaMatcher(node *kyaml.RNode, matchStatements ...KYAMLResourc
 	}
 	return nil
 }
+
+func ExecForeground(command string, args ...string) (int, error) {
+	cmd := exec.Command(command, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	cmdArgs := strings.Join(cmd.Args, " ")
+
+	var cmdErr error
+	var exitCode int
+
+	if err != nil {
+		cmdErr = fmt.Errorf("external command %q exited with an error: %v", cmdArgs, err)
+
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode = exitError.ExitCode()
+		} else {
+			cmdErr = fmt.Errorf("failed to get exit code for external command %q", cmdArgs)
+		}
+	}
+
+	return exitCode, cmdErr
+}

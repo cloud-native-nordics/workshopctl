@@ -18,6 +18,9 @@ const (
 	PipeJS   = "pipe.js"
 	ValuesJS = "values.js"
 
+	// Under ./{ClustersDir}/<cluster>/
+	KubeconfigFile = ".kubeconfig"
+
 	// The default namespace in k8s is called "default"
 	DefaultNamespace     = "default"
 	WorkshopctlNamespace = "workshopctl"

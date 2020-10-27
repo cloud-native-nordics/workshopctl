@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
@@ -59,8 +60,9 @@ func RunKubectl(kf *KubectlFlags, args []string) error {
 	}
 	cn := config.ClusterNumber(kf.Cluster)
 	kubeconfigPath := filepath.Join(kf.RootDir, constants.ClustersDir, cn.String(), constants.KubeconfigFile)
-	_, err := util.ExecForeground("/bin/sh", "-c", 
-		fmt.Sprintf(`KUBECONFIG=%s kubectl %s`, kubeconfigPath, strings.Join(args, " "))
+	// TODO: Add a context here for debugging and dry-running
+	_, err := util.ExecForeground("/bin/sh", "-c",
+		fmt.Sprintf(`KUBECONFIG=%s kubectl %s`, kubeconfigPath, strings.Join(args, " ")),
 	)
 	return err
 }
