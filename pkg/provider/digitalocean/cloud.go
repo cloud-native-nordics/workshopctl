@@ -16,42 +16,63 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const Region = "fra1"
+const (
+	DefaultRegion  = "fra1"
+	RegionKey      = "region"
+	WorkshopctlTag = "workshopctl"
+)
 
-func NewDigitalOceanCloudProvider(p *config.Provider, dryRun bool) provider.CloudProvider {
-	doProvider := &DigitalOceanCloudProvider{
-		p:      p,
-		dryRun: dryRun,
-	}
-	oauthClient := oauth2.NewClient(context.Background(), p.TokenSource())
-	doProvider.c = godo.NewClient(oauthClient)
-	return doProvider
-}
-
-type DigitalOceanCloudProvider struct {
+type doCommon struct {
 	p      *config.Provider
 	c      *godo.Client
 	dryRun bool
 }
 
+func initCommon(ctx context.Context, p *config.Provider, dryRun bool) doCommon {
+	oauthClient := oauth2.NewClient(ctx, p.TokenSource())
+	return doCommon{
+		p:      p,
+		c:      godo.NewClient(oauthClient),
+		dryRun: dryRun,
+	}
+}
+
+func NewDigitalOceanCloudProvider(ctx context.Context, p *config.Provider, dryRun bool) (provider.CloudProvider, error) {
+	doProvider := &DigitalOceanCloudProvider{
+		doCommon: initCommon(ctx, p, dryRun),
+		region:   DefaultRegion,
+	}
+
+	if r, ok := p.ProviderSpecific[RegionKey]; ok {
+		doProvider.region = r
+	}
+	return doProvider, nil
+}
+
+type DigitalOceanCloudProvider struct {
+	doCommon
+
+	region string
+}
+
 func chooseSize(c config.NodeClaim) string {
 	m := map[config.NodeClaim]string{
-		{CPU: 1, RAM: 2}:  "s-1vcpu-2gb",
-		{CPU: 1, RAM: 3}:  "s-1vcpu-3gb",
-		{CPU: 2, RAM: 2}:  "s-2vcpu-2gb",
-		{CPU: 2, RAM: 4}:  "s-2vcpu-4gb",
-		{CPU: 4, RAM: 8}:  "s-4vcpu-8gb",
-		{CPU: 6, RAM: 16}: "s-6vcpu-16gb",
+		{CPU: 2, RAM: 2, Dedicated: false}:  "s-2vcpu-2gb",  // $15
+		{CPU: 2, RAM: 4, Dedicated: false}:  "s-2vcpu-4gb",  // $20
+		{CPU: 4, RAM: 8, Dedicated: false}:  "s-4vcpu-8gb",  // $40
+		{CPU: 8, RAM: 16, Dedicated: false}: "s-8vcpu-16gb", // $80
+		{CPU: 2, RAM: 4, Dedicated: true}:   "c-2-4gib",     // $40
+		{CPU: 4, RAM: 8, Dedicated: true}:   "c-4-8gib",     // $80
 	}
 	if str, ok := m[c]; ok {
 		return str
 	}
-	log.Warnf("didn't find a good size for you, fallback to s-1vcpu-2gb")
-	return "s-1vcpu-2gb"
+	log.Warnf("didn't find a good size for you, fallback to s-2vcpu-4gb")
+	return "s-2vcpu-4gb"
 }
 
-func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c provider.ClusterSpec) (*provider.Cluster, error) {
-	logger := i.NewLogger()
+func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, i config.ClusterNumber, c provider.ClusterSpec) (*provider.Cluster, error) {
+	logger := util.Logger(ctx)
 
 	start := time.Now().UTC()
 	cluster := &provider.Cluster{
@@ -70,7 +91,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 			Count:     int(c.NodeGroups[0].Instances),
 			AutoScale: false,
 			Tags: []string{
-				"workshopctl",
+				WorkshopctlTag,
 				nodePoolName,
 			},
 		},
@@ -78,10 +99,10 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 
 	req := &godo.KubernetesClusterCreateRequest{
 		Name:        c.Name,
-		RegionSlug:  Region,
+		RegionSlug:  do.region,
 		VersionSlug: c.Version, // TODO: Resolve c.Version correctly
 		Tags: []string{
-			"workshopctl",
+			WorkshopctlTag,
 		},
 		NodePools:   nodePool,
 		AutoUpgrade: false,
@@ -96,7 +117,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 		log.Debugf("Would send this request to DO: %s", string(b))
 	}
 	// TODO: Rate limiting
-	clusters, _, err := do.c.Kubernetes.List(context.Background(), &godo.ListOptions{})
+	clusters, _, err := do.c.Kubernetes.List(ctx, &godo.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +131,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 
 	if len(cluster.Status.ID) == 0 {
 		logger.Infof("Creating new cluster with name %s", cluster.Spec.Name)
-		doCluster, _, err := do.c.Kubernetes.Create(context.Background(), req)
+		doCluster, _, err := do.c.Kubernetes.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +139,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 	}
 
 	err = util.Poll(nil, logger, func() (bool, error) {
-		kcluster, _, err := do.c.Kubernetes.Get(context.Background(), cluster.Status.ID)
+		kcluster, _, err := do.c.Kubernetes.Get(ctx, cluster.Status.ID)
 		if err != nil {
 			return false, fmt.Errorf("getting a kubernetes cluster failed: %v", err)
 		}
@@ -156,4 +177,8 @@ func (do *DigitalOceanCloudProvider) CreateCluster(i config.ClusterNumber, c pro
 	cluster.Status.KubeconfigBytes = cc.KubeconfigYAML
 
 	return cluster, nil
+}
+
+func (do *DigitalOceanCloudProvider) DeleteCluster(ctx context.Context, index config.ClusterNumber) error {
+	return nil // TODO: implement this
 }

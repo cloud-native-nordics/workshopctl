@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"net"
 	"net/url"
 	"time"
@@ -30,15 +31,24 @@ type ClusterStatus struct {
 	KubeconfigBytes []byte
 }
 
-// TODO: Make a proper factory of this instead in sub-package providers/
-type CloudProviderFunc func(*config.Provider, bool) CloudProvider
+type CloudProviderFactory interface {
+	NewCloudProvider(ctx context.Context, p *config.Provider, dryrun bool) (CloudProvider, error)
+}
 
 type CloudProvider interface {
 	// CreateCluster creates a cluster. This call is _blocking_ until the cluster is properly provisioned
-	CreateCluster(index config.ClusterNumber, c ClusterSpec) (*Cluster, error)
+	CreateCluster(ctx context.Context, index config.ClusterNumber, c ClusterSpec) (*Cluster, error)
+	// DeleteCluster deletes a cluster and its associated load balancers
+	DeleteCluster(ctx context.Context, index config.ClusterNumber) error
+}
+
+type DNSProviderFactory interface {
+	NewDNSProvider(ctx context.Context, p *config.Provider, rootDomain string, dryrun bool) (DNSProvider, error)
 }
 
 type DNSProvider interface {
 	ChartProcessors() []gen.Processor
 	ValuesProcessors() []gen.Processor
+	// CleanupRecords deletes records associated with a cluster
+	CleanupRecords(ctx context.Context, index config.ClusterNumber) error
 }
