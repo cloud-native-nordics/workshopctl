@@ -37,7 +37,7 @@ func FromClusterInfo(cfg *config.ClusterInfo) *Parameters {
 			RootDomain:    cfg.RootDomain,
 			ClusterDomain: cfg.Domain(),
 
-			TutorialsRepo: cfg.Tutorials.GitRepo,
+			TutorialsRepo: cfg.Tutorials.Repo,
 			TutorialsDir:  cfg.Tutorials.Dir,
 
 			LetsEncryptEmail: cfg.LetsEncryptEmail,

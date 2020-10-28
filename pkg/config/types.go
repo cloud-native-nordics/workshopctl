@@ -165,8 +165,8 @@ type ClusterLogin struct {
 }
 
 type Tutorials struct {
-	GitRepo string `json:"gitRepo"`
-	Dir     string `json:"dir"`
+	Repo string `json:"repo"`
+	Dir  string `json:"dir"`
 }
 
 type ClusterInfo struct {
