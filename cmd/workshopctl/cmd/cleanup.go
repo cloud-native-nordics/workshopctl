@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
@@ -38,7 +37,7 @@ func NewCleanupCommand(rf *RootFlags) *cobra.Command {
 func addCleanupFlags(fs *pflag.FlagSet, cf *CleanupFlags) {}
 
 func RunCleanup(cf *CleanupFlags) error {
-	ctx := util.NewContext(cf.DryRun)
+	ctx := util.NewContext(cf.DryRun, cf.RootDir)
 
 	cfg, err := loadConfig(ctx, cf.ConfigPath)
 	if err != nil {
@@ -61,7 +60,7 @@ func RunCleanup(cf *CleanupFlags) error {
 			return err
 		}
 		// Delete the KubeConfig file
-		kubeconfigPath := filepath.Join(cf.RootDir, clusterInfo.Index.KubeConfigPath())
+		kubeconfigPath := util.JoinPaths(ctx, clusterInfo.Index.KubeConfigPath())
 		if err := util.DeletePath(clusterCtx, kubeconfigPath); err != nil {
 			return err
 		}

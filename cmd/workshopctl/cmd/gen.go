@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"io/ioutil"
-	"path/filepath"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
@@ -50,7 +49,7 @@ func loadConfig(ctx context.Context, configPath string) (*config.Config, error) 
 	if err := util.ReadYAMLFile(configPath, cfg); err != nil {
 		return nil, err
 	}
-	if err := initConfig(ctx, cfg); err != nil {
+	if err := cfg.Complete(ctx); err != nil {
 		return nil, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -60,19 +59,19 @@ func loadConfig(ctx context.Context, configPath string) (*config.Config, error) 
 }
 
 func RunGen(gf *GenFlags) error {
-	ctx := util.NewContext(gf.DryRun)
+	ctx := util.NewContext(gf.DryRun, gf.RootDir)
 	cfg, err := loadConfig(ctx, gf.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	charts, err := gen.SetupInternalChartCache(ctx, cfg.RootDir)
+	charts, err := gen.SetupInternalChartCache(ctx)
 	if err != nil {
 		return err
 	}
 
 	if !gf.SkipLocalCharts {
-		chartsDir := filepath.Join(cfg.RootDir, constants.ChartsDir)
+		chartsDir := util.JoinPaths(ctx, constants.ChartsDir)
 		chartInfos, err := ioutil.ReadDir(chartsDir)
 		if err != nil {
 			return err
@@ -81,7 +80,7 @@ func RunGen(gf *GenFlags) error {
 			if !chartInfo.IsDir() {
 				continue
 			}
-			chart, err := gen.SetupExternalChartCache(ctx, cfg.RootDir, chartInfo.Name())
+			chart, err := gen.SetupExternalChartCache(ctx, chartInfo.Name())
 			if err != nil {
 				return err
 			}

@@ -1,10 +1,6 @@
 package cmd
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
@@ -38,24 +34,13 @@ func NewInitCommand(rf *RootFlags) *cobra.Command {
 func addInitFlags(fs *pflag.FlagSet, inf *InitFlags) {}
 
 func RunInit(inf *InitFlags) error {
-	ctx := util.NewContext(inf.DryRun)
+	ctx := util.NewContext(inf.DryRun, inf.RootDir)
 	if util.FileExists(inf.ConfigPath) {
 		return nil
 	}
 	cfg := &config.Config{}
-	if err := initConfig(ctx, cfg); err != nil {
+	if err := cfg.Complete(ctx); err != nil {
 		return err
 	}
 	return util.WriteYAMLFile(ctx, inf.ConfigPath, cfg)
-}
-
-func initConfig(ctx context.Context, cfg *config.Config) error {
-	if !filepath.IsAbs(cfg.RootDir) { // TODO: This probably doesn't work yet
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		cfg.RootDir = filepath.Join(wd, cfg.RootDir)
-	}
-	return cfg.Complete(ctx)
 }

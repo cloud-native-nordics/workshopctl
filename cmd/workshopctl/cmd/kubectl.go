@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
@@ -45,10 +44,10 @@ func RunKubectl(kf *KubectlFlags, args []string) error {
 		return fmt.Errorf("--cluster is required")
 	}
 
-	ctx := util.NewContext(false)
+	ctx := util.NewContext(false, kf.RootDir)
 
 	cn := kf.Cluster.Number()
-	kubeconfigPath := filepath.Join(kf.RootDir, cn.KubeConfigPath())
+	kubeconfigPath := util.JoinPaths(ctx, cn.KubeConfigPath())
 	kubeconfigEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfigPath)
 	_, _, err := util.Command(ctx, "kubectl", args...).
 		WithEnv(kubeconfigEnv).

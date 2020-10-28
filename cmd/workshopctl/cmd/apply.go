@@ -34,7 +34,7 @@ func NewApplyCommand(rf *RootFlags) *cobra.Command {
 func addApplyFlags(fs *pflag.FlagSet, af *ApplyFlags) {}
 
 func RunApply(af *ApplyFlags) error {
-	ctx := util.NewContext(af.DryRun)
+	ctx := util.NewContext(af.DryRun, af.RootDir)
 	cfg, err := loadConfig(ctx, af.ConfigPath)
 	if err != nil {
 		return err

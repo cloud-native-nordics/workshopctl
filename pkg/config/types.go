@@ -18,8 +18,6 @@ import (
 )
 
 type Config struct {
-	RootDir string `json:"-"`
-
 	// CloudProvider specifies what cloud provider to use and how to authenticate with it.
 	CloudProvider Provider `json:"cloudProvider"`
 	// DNSProvider specifies what dns provider to use and how to authenticate with it.
@@ -104,7 +102,9 @@ func (c *Config) Complete(ctx context.Context) error {
 		}
 	}
 	if c.GitRepo == "" {
-		origin, _, err := util.ShellCommand(ctx, `git -C %s remote -v | grep push | grep origin | awk '{print $2}'`, c.RootDir).Run()
+		// TODO: Find a better home for this
+		rootPath := util.JoinPaths(ctx)
+		origin, _, err := util.ShellCommand(ctx, `git -C %s remote -v | grep push | grep origin | awk '{print $2}'`, rootPath).Run()
 		if err != nil {
 			return err
 		}

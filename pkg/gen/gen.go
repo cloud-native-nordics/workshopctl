@@ -30,9 +30,9 @@ type Processor interface {
 	Process(ctx context.Context, cd *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error
 }
 
-func SetupInternalChartCache(ctx context.Context, rootPath string) ([]*ChartData, error) {
+func SetupInternalChartCache(ctx context.Context) ([]*ChartData, error) {
 	// Restore built-in charts/* to .cache/*
-	if err := charts.RestoreAssets(filepath.Join(rootPath, constants.CacheDir), ""); err != nil {
+	if err := charts.RestoreAssets(util.JoinPaths(ctx, constants.CacheDir), ""); err != nil {
 		return nil, err
 	}
 	// List internal chart names
@@ -44,7 +44,7 @@ func SetupInternalChartCache(ctx context.Context, rootPath string) ([]*ChartData
 	// process them exactly as normal "external" charts
 	chartCache := make([]*ChartData, 0, len(charts))
 	for _, chart := range charts {
-		cd, err := SetupExternalChartCache(ctx, rootPath, chart)
+		cd, err := SetupExternalChartCache(ctx, chart)
 		if err != nil {
 			return nil, err
 		}
@@ -53,9 +53,9 @@ func SetupInternalChartCache(ctx context.Context, rootPath string) ([]*ChartData
 	return chartCache, nil
 }
 
-func SetupExternalChartCache(ctx context.Context, rootPath, chartName string) (*ChartData, error) {
+func SetupExternalChartCache(ctx context.Context, chartName string) (*ChartData, error) {
 	cd := &ChartData{
-		CacheDir:    filepath.Join(rootPath, constants.CacheDir, chartName),
+		CacheDir:    util.JoinPaths(ctx, constants.CacheDir, chartName),
 		Name:        chartName,
 		CopiedFiles: map[string]string{},
 	}
@@ -65,7 +65,7 @@ func SetupExternalChartCache(ctx context.Context, rootPath, chartName string) (*
 		return nil, err
 	}
 
-	chartDir := filepath.Join(rootPath, constants.ChartsDir, chartName)
+	chartDir := util.JoinPaths(ctx, constants.ChartsDir, chartName)
 	for _, f := range constants.KnownChartFiles {
 		from := filepath.Join(chartDir, f)
 		to := filepath.Join(cd.CacheDir, f)
@@ -86,7 +86,7 @@ func SetupExternalChartCache(ctx context.Context, rootPath, chartName string) (*
 
 	// Download the chart if it's explicitely said to be external
 	if externalChartFile, ok := cd.CopiedFiles[constants.ExternalChartFile]; ok {
-		if err := downloadChart(ctx, rootPath, externalChartFile); err != nil {
+		if err := downloadChart(ctx, externalChartFile); err != nil {
 			return nil, err
 		}
 	}
@@ -94,7 +94,7 @@ func SetupExternalChartCache(ctx context.Context, rootPath, chartName string) (*
 	return cd, nil
 }
 
-func downloadChart(ctx context.Context, rootPath, externalChartFile string) error {
+func downloadChart(ctx context.Context, externalChartFile string) error {
 	// Read contents of the external-chart file
 	b, err := ioutil.ReadFile(externalChartFile)
 	if err != nil {
@@ -140,7 +140,7 @@ func downloadChart(ctx context.Context, rootPath, externalChartFile string) erro
 
 	log.Infof("Found external chart to download %q", externalChart)
 	// This extracts the chart to e.g. .cache/kubernetes-dashboard/{Chart.yaml,values.yaml,templates}
-	cacheDir := filepath.Join(rootPath, constants.CacheDir)
+	cacheDir := util.JoinPaths(ctx, constants.CacheDir)
 	_, _, err = util.Command(ctx, "helm", "fetch", externalChart, "--untar", "--untardir", cacheDir).Run()
 	return err
 }
@@ -177,7 +177,7 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 
 	// If there is a ./charts/<chart>/values.yaml file, use that as the "beginning" of the processor chain
 	var initialData []byte
-	valuesYAMLOverride := filepath.Join(clusterInfo.RootDir, constants.ChartsDir, cd.Name, constants.ValuesYAML)
+	valuesYAMLOverride := util.JoinPaths(ctx, constants.ChartsDir, cd.Name, constants.ValuesYAML)
 	if util.FileExists(valuesYAMLOverride) {
 		var err error
 		initialData, err = ioutil.ReadFile(valuesYAMLOverride)
@@ -204,7 +204,8 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 		output = tmp
 	}
 
-	outputFile := filepath.Join(clusterInfo.RootDir, constants.ClustersDir, clusterInfo.Index.String(), fmt.Sprintf("%s.yaml", cd.Name))
+	outputFile := util.JoinPaths(ctx, constants.ClustersDir, clusterInfo.Index.String(), fmt.Sprintf("%s.yaml", cd.Name))
+	// TODO: Make "fake" os.MkdirAll and os.Create util calls that can be used for dry-running
 	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
 		return err
 	}
