@@ -34,6 +34,7 @@ func FromClusterInfo(cfg *config.ClusterInfo) *Parameters {
 			DNSProviderServiceAccount: cfg.DNSProvider.InternalToken,
 			DNSProviderSpecific:       cfg.DNSProvider.ProviderSpecific,
 
+			RootDomain:    cfg.RootDomain,
 			ClusterDomain: cfg.Domain(),
 
 			TutorialsRepo: cfg.Tutorials.GitRepo,
@@ -61,6 +62,7 @@ type WorkshopctlParameters struct {
 	DNSProviderServiceAccount string            `json:"DNS_PROVIDER_SERVICEACCOUNT"`
 	DNSProviderSpecific       map[string]string `json:"-"`
 
+	RootDomain    string `json:"ROOT_DOMAIN"`
 	ClusterDomain string `json:"CLUSTER_DOMAIN"`
 
 	TutorialsRepo string `json:"TUTORIALS_REPO"`
