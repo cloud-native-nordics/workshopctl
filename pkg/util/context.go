@@ -41,6 +41,8 @@ func Logger(ctx context.Context) *logrus.Entry {
 	n, ok := ctx.Value(clusterNumberKey).(uint16)
 	if ok {
 		logger = logger.WithField("cluster", n)
+	} else {
+		logrus.Debug("Didn't find cluster number from context")
 	}
 	return logger
 }
