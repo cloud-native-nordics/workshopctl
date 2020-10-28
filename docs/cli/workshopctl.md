@@ -5,8 +5,10 @@ workshopctl: easily run Kubernetes workshops
 ### Options
 
 ```
+      --config-path string   Where to find the config file (default "workshopctl.yaml")
   -h, --help                 help for workshopctl
       --log-level loglevel   Specify the loglevel for the program (default info)
+      --root-dir string      Where the workshopctl directory is. Must be a Git repo. (default ".")
 ```
 
 ### SEE ALSO
