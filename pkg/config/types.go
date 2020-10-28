@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -257,6 +258,6 @@ func readFileInto(file string, target *string) error {
 	if err != nil {
 		return err
 	}
-	*target = string(b)
+	*target = string(bytes.TrimSpace(b))
 	return nil
 }
