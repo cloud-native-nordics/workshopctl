@@ -23,7 +23,8 @@ generated: /go/bin/go-bindata
 		charts/...
 
 .PHONY: bin/workshopctl
-bin/workshopctl: bin/%: node_modules generated
+bin/workshopctl: bin/%: generated
+	$(MAKE) tidy
 	CGO_ENABLED=0 go build -ldflags "$(shell ./hack/ldflags.sh)" -o bin/$* ./cmd/$*
 
 shell:

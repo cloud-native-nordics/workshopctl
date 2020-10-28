@@ -2,15 +2,14 @@ package main
 
 import (
 	"log"
-	"os"
 	"os/exec"
 
-	"github.com/spf13/cobra/doc"
 	"github.com/cloud-native-nordics/workshopctl/cmd/workshopctl/cmd"
+	"github.com/spf13/cobra/doc"
 )
 
 func main() {
-	command := cmd.NewWorkshopCtlCommand(os.Stdin, os.Stdout, os.Stderr)
+	command := cmd.NewWorkshopCtlCommand()
 	if err := doc.GenMarkdownTree(command, "./docs/cli"); err != nil {
 		log.Fatal(err)
 	}
