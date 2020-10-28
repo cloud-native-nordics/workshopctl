@@ -235,7 +235,7 @@ func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Cont
 			logger := util.Logger(clusterCtx)
 			logger.Tracef("ForCluster goroutine starting...")
 			clusterInfo := NewClusterInfo(cfg, j)
-			if err := fn(ctx, clusterInfo); err != nil {
+			if err := fn(clusterCtx, clusterInfo); err != nil {
 				logger.Error(err)
 				foundErr = true
 			}
