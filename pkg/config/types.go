@@ -122,7 +122,7 @@ func (c *Config) Complete(ctx context.Context) error {
 			Domain:    u.Host,
 			UserLogin: paths[0],
 		},
-		RepositoryName: paths[1],
+		RepositoryName: strings.TrimSuffix(paths[1], ".git"),
 	}
 	return nil
 }
