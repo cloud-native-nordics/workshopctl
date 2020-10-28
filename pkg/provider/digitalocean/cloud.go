@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
@@ -191,7 +192,18 @@ func (do *DigitalOceanCloudProvider) DeleteCluster(ctx context.Context, index co
 
 	util.DebugObject(ctx, "Found wanted cluster", cluster)
 
-	// TODO: Delete LBs
+	// List all relevant LBs
+	lbs, err := do.listLBsForCluster(ctx, cluster)
+	if err != nil {
+		return err
+	}
+	util.DebugObject(ctx, "LBs", lbs)
+
+	for _, lb := range lbs {
+		if err := do.deleteLB(ctx, lb); err != nil {
+			return err
+		}
+	}
 
 	return do.deleteCluster(ctx, cluster)
 }
@@ -227,5 +239,57 @@ func (do *DigitalOceanCloudProvider) deleteCluster(ctx context.Context, c *godo.
 	}
 	logger.Infof("Deleting Kubernetes cluster %s", c.Name)
 	_, err := do.c.Kubernetes.Delete(ctx, c.ID)
+	return err
+}
+
+func (do *DigitalOceanCloudProvider) listLBsForCluster(ctx context.Context, cluster *godo.KubernetesCluster) ([]godo.LoadBalancer, error) {
+	logger := util.Logger(ctx)
+
+	droplets := map[string]struct{}{}
+	for _, nodePool := range cluster.NodePools {
+		for _, node := range nodePool.Nodes {
+			logger.Debugf("Found droplet with ID %s in node pool %s", node.DropletID, nodePool.Name)
+			droplets[node.DropletID] = struct{}{}
+		}
+	}
+
+	lbs, _, err := do.c.LoadBalancers.List(ctx, &godo.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	clusterLBs := []godo.LoadBalancer{}
+	for _, lb := range lbs {
+		// Is there any droplet in our current cluster that is served by this LB?
+		found := false
+		for _, lbDropletID := range lb.DropletIDs {
+			// lbDropletID is an int but the same droplet IDs above are strings, hence cast this to a string
+			lbDropletIDStr := strconv.Itoa(lbDropletID)
+			if _, ok := droplets[lbDropletIDStr]; ok {
+				logger.Debugf("LB %s is served by droplet with ID %s", lb.Name, lbDropletIDStr)
+				found = true
+				break
+			}
+		}
+		// If this LB didn't match any of our known droplets, it's isn't ours so proceed
+		if !found {
+			logger.Debugf("LB %s isn't served by any of the droplets in this cluster", lb.Name)
+			continue
+		}
+		// Append to the list
+		clusterLBs = append(clusterLBs, lb)
+	}
+	return clusterLBs, nil
+}
+
+func (do *DigitalOceanCloudProvider) deleteLB(ctx context.Context, lb godo.LoadBalancer) error {
+	logger := util.Logger(ctx)
+
+	if util.IsDryRun(ctx) {
+		logger.Infof("Would delete Kubernetes load balancer %s", lb.Name)
+		return nil
+	}
+	logger.Infof("Deleting Kubernetes load balancer %s", lb.Name)
+	_, err := do.c.LoadBalancers.Delete(ctx, lb.ID)
 	return err
 }

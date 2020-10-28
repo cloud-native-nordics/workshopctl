@@ -129,12 +129,23 @@ func WriteYAMLFile(ctx context.Context, file string, obj interface{}) error {
 }
 
 func WriteFile(ctx context.Context, file string, b []byte) error {
+	logger := Logger(ctx)
 	if IsDryRun(ctx) {
-		logger := Logger(ctx)
 		logger.Infof("Would write the following contents to file %q: %s", file, string(b))
 		return nil
 	}
+	logger.Debugf("Writing the following contents to file %q: %s", file, string(b))
 	return ioutil.WriteFile(file, b, 0644)
+}
+
+func DeletePath(ctx context.Context, fileOrFolder string) error {
+	logger := Logger(ctx)
+	if IsDryRun(ctx) {
+		logger.Infof("Would delete path %q", fileOrFolder)
+		return nil
+	}
+	logger.Debugf("Deleting path %q", fileOrFolder)
+	return os.RemoveAll(fileOrFolder)
 }
 
 type KYAMLFilterFunc func(*kyaml.RNode) (*kyaml.RNode, error)

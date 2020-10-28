@@ -2,6 +2,7 @@ package digitalocean
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 
@@ -40,7 +41,7 @@ func (do *DigitalOceanDNSProvider) CleanupRecords(ctx context.Context, index con
 	logger := util.Logger(ctx)
 
 	subdomain := index.Subdomain()
-	logger.Infof("Asking for records for domain %s and sub-domain %s", do.rootDomain, subdomain)
+	logger.Debugf("Asking for records for domain %s and sub-domain %s", do.rootDomain, subdomain)
 	// List all records for domain
 	records, _, err := do.c.Domains.Records(ctx, do.rootDomain, &godo.ListOptions{})
 	if err != nil {
@@ -65,13 +66,18 @@ func (do *DigitalOceanDNSProvider) CleanupRecords(ctx context.Context, index con
 }
 
 func (do *DigitalOceanDNSProvider) deleteRecord(ctx context.Context, record *godo.DomainRecord, logger *logrus.Entry) error {
+	recordStr := do.recordStr(record)
 	if do.dryRun {
-		logger.Infof("Would delete record: %s", record)
+		logger.Infof("Would delete record: %s", recordStr)
 		return nil
 	}
-	logger.Infof("Deleting record: %s", record)
+	logger.Infof("Deleting record: %s", recordStr)
 	_, err := do.c.Domains.DeleteRecord(ctx, do.rootDomain, record.ID)
 	return err
+}
+
+func (do *DigitalOceanDNSProvider) recordStr(record *godo.DomainRecord) string {
+	return fmt.Sprintf("%s %s.%s: %s", record.Type, record.Name, do.rootDomain, record.Data)
 }
 
 var (
