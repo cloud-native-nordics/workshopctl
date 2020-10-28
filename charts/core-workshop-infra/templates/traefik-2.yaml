@@ -168,6 +168,8 @@ metadata:
   namespace: workshopctl
   labels:
     app: traefik
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "traefik.{{ .Values.workshopctl.CLUSTER_DOMAIN }}"
 spec:
   ports:
   - name: http
