@@ -69,7 +69,7 @@ spec:
     spec:
       serviceAccountName: code-server
       containers:
-      - image: luxas/k8s-web-ide:v2.1.0
+      - image: luxas/k8s-web-ide:v2.1.1
         # TODO: In the future: ghcr.io/cloud-native-nordics/k8s-web-ide:v0.2.0
         imagePullPolicy: Always
         name: code-server

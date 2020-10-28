@@ -1,4 +1,4 @@
-VERSION=v2.1.0
+VERSION=v2.1.1
 all: build
 build:
 	docker build --pull -t luxas/k8s-web-ide:$(VERSION) .
