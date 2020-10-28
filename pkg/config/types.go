@@ -232,9 +232,14 @@ func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Cont
 	wg := &sync.WaitGroup{}
 	wg.Add(int(n))
 	foundErr := false
+
+	// mutex shared by cluster threads when they need to coordinate
+	// TODO: This is limited to only one lock operation, consider supporting more in the future
+	mux := &sync.Mutex{}
 	for i := ClusterNumber(1); i <= ClusterNumber(n); i++ {
 		go func(j ClusterNumber) {
 			clusterCtx := util.WithClusterNumber(ctx, uint16(j))
+			clusterCtx = util.WithMutex(clusterCtx, mux)
 			logger := util.Logger(clusterCtx)
 			logger.Tracef("ForCluster goroutine starting...")
 			clusterInfo := NewClusterInfo(cfg, j)

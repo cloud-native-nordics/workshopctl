@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -79,6 +80,23 @@ func JoinPaths(ctx context.Context, filePaths ...string) string {
 	rootPath, _ := getRootPath(ctx)
 	filePaths = append([]string{rootPath}, filePaths...)
 	return filepath.Join(filePaths...)
+}
+
+var muxKey = muxKeyImpl{}
+
+type muxKeyImpl struct{}
+
+func WithMutex(ctx context.Context, mux *sync.Mutex) context.Context {
+	return context.WithValue(ctx, muxKey, mux)
+}
+
+func GetMutex(ctx context.Context) (*sync.Mutex, bool) {
+	mux, ok := ctx.Value(muxKey).(*sync.Mutex)
+	if !ok {
+		logrus.Debug("Didn't find mux from context, defaulting to nil")
+		return nil, false
+	}
+	return mux, ok
 }
 
 func Logger(ctx context.Context) *logrus.Entry {
