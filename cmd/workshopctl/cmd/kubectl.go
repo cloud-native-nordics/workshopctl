@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
@@ -14,12 +11,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const EnvCluster = "WORKSHOPCTL_CLUSTER"
-
 type KubectlFlags struct {
 	*RootFlags
 
-	Cluster uint16
+	Cluster ClusterFlag
 }
 
 // NewKubectlCommand returns the "kubectl" command
@@ -42,24 +37,17 @@ func NewKubectlCommand(rf *RootFlags) *cobra.Command {
 }
 
 func addKubectlFlags(fs *pflag.FlagSet, kf *KubectlFlags) {
-	fs.Uint16VarP(&kf.Cluster, "cluster", "c", kf.Cluster, fmt.Sprintf("What cluster number you want to connect to. Env var %s can also be used.", EnvCluster))
+	AddClusterFlag(fs, &kf.Cluster)
 }
 
 func RunKubectl(kf *KubectlFlags, args []string) error {
+	if kf.Cluster == 0 {
+		return fmt.Errorf("--cluster is required")
+	}
+
 	ctx := util.NewContext(kf.DryRun)
 
-	if kf.Cluster == 0 {
-		clusterEnv := os.Getenv(EnvCluster)
-		if clusterEnv == "" {
-			return fmt.Errorf("Flag --cluster is mandatory")
-		}
-		cluster, err := strconv.Atoi(clusterEnv)
-		if err != nil {
-			return err
-		}
-		kf.Cluster = uint16(cluster)
-	}
-	cn := config.ClusterNumber(kf.Cluster)
+	cn := kf.Cluster.Number()
 	kubeconfigPath := filepath.Join(kf.RootDir, constants.ClustersDir, cn.String(), constants.KubeconfigFile)
 	kubeconfigEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfigPath)
 	_, _, err := util.Command(ctx, "kubectl", args...).WithEnv(kubeconfigEnv).Run()
