@@ -138,6 +138,11 @@ func (e *kubectlExecer) WithArgs(args ...string) *kubectlExecer {
 	return e
 }
 
+func (e *kubectlExecer) IgnoreErrors(errStrs ...string) *kubectlExecer {
+	e.ignoreErrors = append(e.ignoreErrors, errStrs...)
+	return e
+}
+
 func (e *kubectlExecer) Create(kind, subkind, name string, ignoreExists, recreate bool) *kubectlExecer {
 	e.args = append(e.args, "create", kind)
 	if len(subkind) > 0 {
@@ -146,12 +151,13 @@ func (e *kubectlExecer) Create(kind, subkind, name string, ignoreExists, recreat
 	e.args = append(e.args, name)
 	if ignoreExists {
 		// if we're idempotent, we don't care about "already exists" errors
-		e.ignoreErrors = append(e.ignoreErrors, "AlreadyExists")
+		e.IgnoreErrors("AlreadyExists")
 	}
 	if recreate {
 		_, err := kubectl(e.ctx, e.kubeConfigPath).
 			WithNS(e.namespace).
 			WithArgs("delete", kind, name).
+			IgnoreErrors("NotFound"). // Ignore any possible NotFound error here, that is expected
 			Run()
 		if err != nil {
 			e.err = err
