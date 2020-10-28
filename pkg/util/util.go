@@ -269,21 +269,24 @@ func (e *ExecUtil) Run() (output string, exitCode int, cmdErr error) {
 	}
 	// Run command
 	e.logger.Debugf("Running command %q", cmdArgs)
-	if err := e.cmd.Run(); err != nil {
+	err := e.cmd.Run()
 
+	// Capture combined output
+	output = string(bytes.TrimSpace(e.outBuf.Bytes()))
+	if len(output) != 0 {
+		e.logger.Debugf("Command %q produced output: %s", cmdArgs, output)
+	}
+
+	// Handle the error
+	if err != nil {
 		exitCodeStr := "'unknown'"
 		if exitError, ok := err.(*exec.ExitError); ok {
 			exitCode = exitError.ExitCode()
 			exitCodeStr = fmt.Sprintf("%d", exitCode)
 		}
 
-		cmdErr = fmt.Errorf("external command %q exited with code %s and error: %w", cmdArgs, exitCodeStr, err)
-		e.logger.Errorf("Command error: %v", cmdErr)
-	}
-	// Capture combined output
-	output = string(bytes.TrimSpace(e.outBuf.Bytes()))
-	if len(output) != 0 {
-		e.logger.Debugf("Command %q produced output: %s", cmdArgs, output)
+		cmdErr = fmt.Errorf("external command %q exited with code %s, error: %w and output: %s", cmdArgs, exitCodeStr, err, output)
+		e.logger.Debugf("Command error: %v", cmdErr)
 	}
 	return
 }
