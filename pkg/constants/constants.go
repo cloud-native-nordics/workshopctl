@@ -34,11 +34,11 @@ func ClusterName(index fmt.Stringer) string {
 	return fmt.Sprintf("workshopctl-cluster-%s", index)
 }
 
+// These files will be copied from ./charts/<chart>/<file> to ./.cache/<chart>/<file>
 var KnownChartFiles = []string{
 	// Helm "classic" files
 	TemplatesDir,
 	ChartYAML,
-	ValuesYAML,
 
 	// workshopctl-specific files
 	NamespaceFile,

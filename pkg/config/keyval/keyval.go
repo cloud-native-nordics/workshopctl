@@ -87,3 +87,9 @@ func (p *Parameters) ToMap() map[string]string {
 	}
 	return m
 }
+
+func (p *Parameters) ToMapWithWorkshopctl() map[string]interface{} {
+	return map[string]interface{}{
+		"workshopctl": p.ToMap(),
+	}
+}

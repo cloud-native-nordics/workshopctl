@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
@@ -146,6 +147,14 @@ func DeletePath(ctx context.Context, fileOrFolder string) error {
 	}
 	logger.Debugf("Deleting path %q", fileOrFolder)
 	return os.RemoveAll(fileOrFolder)
+}
+
+func ApplyTemplate(tmpl string, data interface{}) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := template.Must(template.New("tmpl").Parse(tmpl)).Execute(buf, data); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 type KYAMLFilterFunc func(*kyaml.RNode) (*kyaml.RNode, error)

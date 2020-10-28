@@ -157,14 +157,14 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 		namespace = string(b)
 	}
 	// 1. Read values.yaml, if exists, otherwise start with an empty buffer as the first io.Reader
-	// 2. Attach the addParamsToValues{} values processor which adds the parameters as needed
+	// 2. Attach the valuesYAMLProcessor{} values processor which adds the parameters as needed
 	// 3. Invoke other values processors as needed in a chain
 	// 4. Run "helm template -n %s workshopctl chart -f -" with values as stdin
 	// 5. Invoke other chart processors, but always the \{\{ => {{ one
 	// 6. Write output to ./clusters/001/<name>.yaml
 
 	processorChain := []Processor{
-		&addParamsToValues{},
+		&valuesYAMLProcessor{},
 	}
 	processorChain = append(processorChain, valuesProcessors...)
 	processorChain = append(processorChain, []Processor{
@@ -175,10 +175,12 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 
 	p := keyval.FromClusterInfo(clusterInfo)
 
+	// If there is a ./charts/<chart>/values.yaml file, use that as the "beginning" of the processor chain
 	var initialData []byte
-	if valuesFile, ok := cd.CopiedFiles[constants.ValuesYAML]; ok {
+	valuesYAMLOverride := filepath.Join(clusterInfo.RootDir, constants.ChartsDir, cd.Name, constants.ValuesYAML)
+	if util.FileExists(valuesYAMLOverride) {
 		var err error
-		initialData, err = ioutil.ReadFile(valuesFile)
+		initialData, err = ioutil.ReadFile(valuesYAMLOverride)
 		if err != nil {
 			return err
 		}
@@ -215,19 +217,33 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 	return err
 }
 
-type addParamsToValues struct{}
+// and template them! TODO: Change this name later
+type valuesYAMLProcessor struct{}
 
-func (pr *addParamsToValues) Process(ctx context.Context, _ *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
-	if _, err := io.Copy(w, r); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte("\n")); err != nil {
-		return err
-	}
-	b, err := yaml.Marshal(p)
+func (pr *valuesYAMLProcessor) Process(ctx context.Context, _ *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
+	// It is possible that r doesn't have any content and b will be empty and err == nil
+	// This is expected if there wasn't a values.yaml file present.
+	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
 	}
+
+	// Apply templating for customizing the values.yaml file
+	b, err = util.ApplyTemplate(string(b), p.ToMapWithWorkshopctl())
+	if err != nil {
+		return err
+	}
+
+	// Add an extra newline between the original, templated data and our own YAML below
+	b = append(b, byte('\n'))
+
+	yamlBytes, err := yaml.Marshal(p)
+	if err != nil {
+		return err
+	}
+	b = append(b, yamlBytes...)
+
+	// Write everything to the next processor
 	_, err = w.Write(b)
 	return err
 }
