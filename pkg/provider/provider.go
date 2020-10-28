@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/gen"
 )
 
@@ -16,14 +17,17 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Name       string
+	Index      config.ClusterNumber
 	Version    string
 	NodeGroups []config.NodeGroup
 }
 
+func (s ClusterSpec) Name() string {
+	return constants.ClusterName(s.Index)
+}
+
 type ClusterStatus struct {
 	ID              string
-	Index           config.ClusterNumber
 	ProvisionStart  *time.Time
 	ProvisionDone   *time.Time
 	EndpointURL     *url.URL
@@ -37,7 +41,7 @@ type CloudProviderFactory interface {
 
 type CloudProvider interface {
 	// CreateCluster creates a cluster. This call is _blocking_ until the cluster is properly provisioned
-	CreateCluster(ctx context.Context, index config.ClusterNumber, c ClusterSpec) (*Cluster, error)
+	CreateCluster(ctx context.Context, c ClusterSpec) (*Cluster, error)
 	// DeleteCluster deletes a cluster and its associated load balancers
 	DeleteCluster(ctx context.Context, index config.ClusterNumber) error
 }

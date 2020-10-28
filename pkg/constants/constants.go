@@ -1,5 +1,7 @@
 package constants
 
+import "fmt"
+
 const (
 	// Top-level directories, i.e. ./
 	ChartsDir   = "charts"
@@ -27,6 +29,10 @@ const (
 
 	WorkshopctlSecret = "workshopctl"
 )
+
+func ClusterName(index fmt.Stringer) string {
+	return fmt.Sprintf("workshopctl-cluster-%s", index)
+}
 
 var KnownChartFiles = []string{
 	// Helm "classic" files
