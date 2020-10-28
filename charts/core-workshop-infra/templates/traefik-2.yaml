@@ -67,6 +67,7 @@ data:
           service: api@internal
           entryPoints:
           - traefik
+          - websecure
           middlewares:
           - api-auth
       middlewares:
@@ -128,8 +129,6 @@ spec:
         - name: https
           containerPort: 443
         - name: admin
-          containerPort: 8080
-        - name: admin-http
           containerPort: 8080
         env:
         - name: LETSENCRYPT_EMAIL
