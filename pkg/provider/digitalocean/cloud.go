@@ -65,8 +65,8 @@ func chooseSize(c config.NodeClaim) string {
 		{CPU: 2, RAM: 4, Dedicated: false}:  "s-2vcpu-4gb",  // $20
 		{CPU: 4, RAM: 8, Dedicated: false}:  "s-4vcpu-8gb",  // $40
 		{CPU: 8, RAM: 16, Dedicated: false}: "s-8vcpu-16gb", // $80
-		{CPU: 2, RAM: 4, Dedicated: true}:   "c-2-4gib",     // $40
-		{CPU: 4, RAM: 8, Dedicated: true}:   "c-4-8gib",     // $80
+		{CPU: 2, RAM: 4, Dedicated: true}:   "c-2",          // $40
+		{CPU: 4, RAM: 8, Dedicated: true}:   "c-4",          // $80
 	}
 	if str, ok := m[c]; ok {
 		return str
