@@ -10,5 +10,6 @@ image:
 
 ingress:
   enabled: true
+  path: /
   hosts:
   - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"
