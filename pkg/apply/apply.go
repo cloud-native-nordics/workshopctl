@@ -22,7 +22,7 @@ func Apply(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, cfg.DNSProvider, cfg.RootDomain)
+	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, &cfg.DNSProvider, cfg.RootDomain)
 	if err != nil {
 		return err
 	}

@@ -37,20 +37,13 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 	}
 
 	var provider string
-	switch info.GitRepoStruct.Domain {
+	switch info.Git.RepoStruct.Domain {
 	case "github.com":
 		provider = "github"
 	case "gitlab.com":
 		provider = "gitlab"
 	default:
-		return fmt.Errorf("git repo %s: unknown provider domain", info.GitRepo)
-	}
-
-	// Forward the env var
-	envVarName := fmt.Sprintf("%s_TOKEN", strings.ToUpper(provider))
-	envVarVal := os.Getenv(envVarName)
-	if envVarVal == "" {
-		return fmt.Errorf("Need to set env var: %s", envVarName)
+		return fmt.Errorf("git repo %s: unknown provider domain", info.Git.Repo)
 	}
 
 	// TODO: Upstream gotk doesn't support the --kubeconfig flag in install/bootstrap at least
@@ -66,8 +59,8 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 		kubeConfigArg,
 		"bootstrap",
 		provider,
-		"--owner="+info.GitRepoStruct.UserLogin,
-		"--repository="+info.GitRepoStruct.RepositoryName,
+		"--owner="+info.Git.RepoStruct.UserLogin,
+		"--repository="+info.Git.RepoStruct.RepositoryName,
 		"--path="+info.Index.ClusterDir(),
 		// Only install these two for now. TODO: In the future, also include notifications
 		"--components=source-controller,kustomize-controller,helm-controller",
@@ -76,7 +69,12 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 		// TODO: Assuming personal for now
 		"--personal",
 	).WithStdio(nil, os.Stdout, os.Stderr).
-		WithEnv(fmt.Sprintf("%s=%s", envVarName, envVarVal), kubeConfigEnv, "PATH="+os.Getenv("PATH")).
-		Run()
+		WithEnv(
+			// Forward the {GITHUB,GITLAB}_TOKEN variable from the config file
+			fmt.Sprintf("%s_TOKEN=%s", strings.ToUpper(provider), info.Git.ServiceAccountContent),
+			// Forward the PATH variable
+			fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
+			kubeConfigEnv,
+		).Run()
 	return err
 }

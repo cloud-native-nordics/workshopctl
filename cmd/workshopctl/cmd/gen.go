@@ -52,9 +52,6 @@ func loadConfig(ctx context.Context, configPath string) (*config.Config, error) 
 	if err := cfg.Complete(ctx); err != nil {
 		return nil, err
 	}
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
 	return cfg, nil
 }
 
@@ -91,7 +88,7 @@ func RunGen(gf *GenFlags) error {
 
 	// dry-run can be always true here as we're not gonna use the provider for requests, only manifest gen
 	dnsCtx := util.WithDryRun(ctx, true)
-	dnsProvider, err := providers.DNSProviders().NewDNSProvider(dnsCtx, cfg.DNSProvider, cfg.RootDomain)
+	dnsProvider, err := providers.DNSProviders().NewDNSProvider(dnsCtx, &cfg.DNSProvider, cfg.RootDomain)
 	if err != nil {
 		return err
 	}

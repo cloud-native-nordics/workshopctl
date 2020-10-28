@@ -26,17 +26,17 @@ type Config struct {
 	// CloudProvider specifies what cloud provider to use and how to authenticate with it.
 	CloudProvider Provider `json:"cloudProvider"`
 	// DNSProvider specifies what dns provider to use and how to authenticate with it.
-	// If nil, CloudProvider is used.
-	DNSProvider *Provider `json:"dnsProvider"`
+	DNSProvider Provider `json:"dnsProvider"`
 
 	RootDomain string `json:"rootDomain"`
-	Clusters   uint16 `json:"clusters"`
-	// TODO: Add git provider tokens
-	GitRepo       string                        `json:"gitRepo"`
-	GitRepoStruct gitprovider.UserRepositoryRef `json:"-"`
+	// How many clusters should be created?
+	Clusters uint16 `json:"clusters"`
+	// Where to store the manifests for collaboration?
+	Git Git `json:"git"`
 
 	// If this is specified you can use "sealed secrets"
-	GPGKeyID string `json:"gpgKeyID"`
+	// TODO: Implement this with the help of Mozilla SOPS
+	// GPGKeyID string `json:"gpgKeyID"`
 
 	// Whom to contact by Let's Encrypt
 	LetsEncryptEmail string `json:"letsEncryptEmail"`
@@ -49,6 +49,9 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("name must not be empty")
+	}
 	if c.CloudProvider.ServiceAccountPath == "" {
 		return fmt.Errorf("must specify cloud provider SA path")
 	}
@@ -61,21 +64,28 @@ func (c *Config) Validate() error {
 	if c.LetsEncryptEmail == "" {
 		return fmt.Errorf("Let's Encrypt email must not be empty")
 	}
-	if c.Name == "" {
-		return fmt.Errorf("name must not be empty")
+	if c.Git.Repo == "" {
+		return fmt.Errorf("must specify backing git repo")
+	}
+	if c.Git.ServiceAccountPath == "" {
+		return fmt.Errorf("must specify git provider token")
 	}
 	return nil
 }
 
 func (c *Config) Complete(ctx context.Context) error {
+	// First validate the struct
+	if err := c.Validate(); err != nil {
+		return err
+	}
 	if c.CloudProvider.Name == "" {
 		c.CloudProvider.Name = "digitalocean"
 	}
+	if c.DNSProvider.Name == "" {
+		c.DNSProvider.Name = "digitalocean"
+	}
 	if c.Clusters == 0 {
 		c.Clusters = 1
-	}
-	if c.DNSProvider == nil {
-		c.DNSProvider = &c.CloudProvider
 	}
 	if c.ClusterLogin.Username == "" {
 		c.ClusterLogin.Username = "workshopctl"
@@ -90,13 +100,19 @@ func (c *Config) Complete(ctx context.Context) error {
 	}
 	if c.CloudProvider.ServiceAccountPath != "" {
 		saPath := util.JoinPaths(ctx, c.CloudProvider.ServiceAccountPath)
-		if err := readFileInto(saPath, &c.CloudProvider.InternalToken); err != nil {
+		if err := readFileInto(saPath, &c.CloudProvider.ServiceAccountContent); err != nil {
 			return err
 		}
 	}
 	if c.DNSProvider.ServiceAccountPath != "" {
 		saPath := util.JoinPaths(ctx, c.DNSProvider.ServiceAccountPath)
-		if err := readFileInto(saPath, &c.DNSProvider.InternalToken); err != nil {
+		if err := readFileInto(saPath, &c.DNSProvider.ServiceAccountContent); err != nil {
+			return err
+		}
+	}
+	if c.Git.ServiceAccountPath != "" {
+		saPath := util.JoinPaths(ctx, c.Git.ServiceAccountPath)
+		if err := readFileInto(saPath, &c.Git.ServiceAccountContent); err != nil {
 			return err
 		}
 	}
@@ -112,21 +128,14 @@ func (c *Config) Complete(ctx context.Context) error {
 			},
 		}
 	}
-	if c.GitRepo == "" {
-		// TODO: Find a better home for this
-		rootPath := util.JoinPaths(ctx)
-		origin, _, err := util.ShellCommand(ctx, `git -C %s remote -v | grep push | grep origin | awk '{print $2}'`, rootPath).Run()
-		if err != nil {
-			return err
-		}
-		c.GitRepo = origin
-	}
-	u, err := giturls.Parse(c.GitRepo)
+	// Parse the git URL
+	// TODO: This should live in go-git-providers
+	u, err := giturls.Parse(c.Git.Repo)
 	if err != nil {
 		return err
 	}
 	paths := strings.Split(u.Path, "/")
-	c.GitRepoStruct = gitprovider.UserRepositoryRef{
+	c.Git.RepoStruct = gitprovider.UserRepositoryRef{
 		UserRef: gitprovider.UserRef{
 			Domain:    u.Host,
 			UserLogin: paths[0],
@@ -136,19 +145,26 @@ func (c *Config) Complete(ctx context.Context) error {
 	return nil
 }
 
+type ServiceAccount struct {
+	// ServiceAccountPath specifies the file path to the service account
+	ServiceAccountPath string `json:"serviceAccountPath"`
+	// The contents of ServiceAccountPath, read at runtime and never marshalled.
+	ServiceAccountContent string `json:"-"`
+}
+
+// If the ServiceAccount is an oauth2 token, this helper method might be useful for
+// the implementing provider
+func (sa ServiceAccount) TokenSource() oauth2.TokenSource {
+	return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: sa.ServiceAccountContent})
+}
+
 type Provider struct {
 	// Name of the provider. For now, only "digitalocean" is supported.
 	Name string `json:"name"`
-	// ServiceAccountPath specifies the file path to the service account
-	ServiceAccountPath string `json:"serviceAccountPath"`
-
+	// The ServiceAccount struct is embedded and inlined into the provider
+	ServiceAccount `json:",inline"`
+	// Provider-specific data
 	ProviderSpecific map[string]string `json:"providerSpecific,omitempty"`
-
-	InternalToken string `json:"-"`
-}
-
-func (p *Provider) TokenSource() oauth2.TokenSource {
-	return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: p.InternalToken})
 }
 
 type NodeGroup struct {
@@ -161,6 +177,15 @@ type NodeClaim struct {
 	RAM uint16 `json:"ram"`
 	// Refers to if the CPU is shared with other tenants, or dedicated for this VM
 	Dedicated bool `json:"dedicated"`
+}
+
+type Git struct {
+	// Repo specifies where the "infra" git repo should be
+	Repo       string                        `json:"repo"`
+	RepoStruct gitprovider.UserRepositoryRef `json:"-"`
+
+	// The ServiceAccount struct is embedded and inlined into this struct
+	ServiceAccount `json:",inline"`
 }
 
 type ClusterLogin struct {
@@ -186,13 +211,17 @@ type ClusterInfo struct {
 	Password string
 }
 
-func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
+func NewClusterInfo(ctx context.Context, cfg *Config, i ClusterNumber) *ClusterInfo {
 	pass := cfg.ClusterLogin.CommonPassword
 	if cfg.ClusterLogin.UniquePasswords {
 		var err error
 		pass, err = util.RandomSHA(4) // TODO: constant
 		if err != nil {
 			panic(err)
+		}
+		// Warn about possible misconfigurations
+		if len(cfg.ClusterLogin.CommonPassword) != 0 {
+			util.Logger(ctx).Warnf("You have specified both .ClusterLogin.UniquePasswords and .ClusterLogin.CommonPassword. UniquePasswords has higher priority and hence CommonPassword is ignored.")
 		}
 	}
 	return &ClusterInfo{cfg, i, pass}
@@ -250,7 +279,7 @@ func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Cont
 			clusterCtx = util.WithMutex(clusterCtx, mux)
 			logger := util.Logger(clusterCtx)
 			logger.Tracef("ForCluster goroutine starting...")
-			clusterInfo := NewClusterInfo(cfg, j)
+			clusterInfo := NewClusterInfo(clusterCtx, cfg, j)
 			if err := fn(clusterCtx, clusterInfo); err != nil {
 				logger.Error(err)
 				foundErr = true

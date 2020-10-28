@@ -50,7 +50,7 @@ func RunCleanup(cf *CleanupFlags) error {
 		return err
 	}
 
-	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, cfg.DNSProvider, cfg.RootDomain)
+	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, &cfg.DNSProvider, cfg.RootDomain)
 	if err != nil {
 		return err
 	}

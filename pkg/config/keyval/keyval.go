@@ -26,12 +26,12 @@ func FromClusterInfo(cfg *config.ClusterInfo) *Parameters {
 	return &Parameters{
 		WorkshopctlParameters: WorkshopctlParameters{
 			CloudProvider:               cfg.CloudProvider.Name,
-			CloudProviderServiceAccount: cfg.CloudProvider.InternalToken,
+			CloudProviderServiceAccount: cfg.CloudProvider.ServiceAccountContent,
 			CloudProviderSpecific:       cfg.CloudProvider.ProviderSpecific,
 
 			ExternalDNSProvider:       externalDNSMap[cfg.DNSProvider.Name],
 			TraefikDNSProvider:        traefikDNSMap[cfg.DNSProvider.Name],
-			DNSProviderServiceAccount: cfg.DNSProvider.InternalToken,
+			DNSProviderServiceAccount: cfg.DNSProvider.ServiceAccountContent,
 			DNSProviderSpecific:       cfg.DNSProvider.ProviderSpecific,
 
 			RootDomain:    cfg.RootDomain,
