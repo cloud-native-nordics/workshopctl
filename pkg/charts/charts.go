@@ -303,17 +303,17 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"core-workshop-infra": &bintree{nil, map[string]*bintree{
-		"Chart.yaml": &bintree{coreWorkshopInfraChartYaml, map[string]*bintree{}},
-		"templates": &bintree{nil, map[string]*bintree{
-			"code-server.yaml":  &bintree{coreWorkshopInfraTemplatesCodeServerYaml, map[string]*bintree{}},
-			"external-dns.yaml": &bintree{coreWorkshopInfraTemplatesExternalDnsYaml, map[string]*bintree{}},
-			"traefik-2.yaml":    &bintree{coreWorkshopInfraTemplatesTraefik2Yaml, map[string]*bintree{}},
+	"core-workshop-infra": {nil, map[string]*bintree{
+		"Chart.yaml": {coreWorkshopInfraChartYaml, map[string]*bintree{}},
+		"templates": {nil, map[string]*bintree{
+			"code-server.yaml":  {coreWorkshopInfraTemplatesCodeServerYaml, map[string]*bintree{}},
+			"external-dns.yaml": {coreWorkshopInfraTemplatesExternalDnsYaml, map[string]*bintree{}},
+			"traefik-2.yaml":    {coreWorkshopInfraTemplatesTraefik2Yaml, map[string]*bintree{}},
 		}},
 	}},
-	"podinfo": &bintree{nil, map[string]*bintree{
-		"external-chart":       &bintree{podinfoExternalChart, map[string]*bintree{}},
-		"values-override.yaml": &bintree{podinfoValuesOverrideYaml, map[string]*bintree{}},
+	"podinfo": {nil, map[string]*bintree{
+		"external-chart":       {podinfoExternalChart, map[string]*bintree{}},
+		"values-override.yaml": {podinfoValuesOverrideYaml, map[string]*bintree{}},
 	}},
 }}
 
