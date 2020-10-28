@@ -60,6 +60,9 @@ type DigitalOceanCloudProvider struct {
 }
 
 func chooseSize(c config.NodeClaim) string {
+	// TODO: Improve this to first check ratio between CPU and memory to distinguish
+	// what kind of type of droplet there should be (2 * CPU = RAM e.g. for Basic and CPU-optimized
+	// droplets, 4 for General Purpose, and 8 for Mem-optimized).
 	m := map[config.NodeClaim]string{
 		{CPU: 2, RAM: 2, Dedicated: false}:  "s-2vcpu-2gb",  // $15
 		{CPU: 2, RAM: 4, Dedicated: false}:  "s-2vcpu-4gb",  // $20
@@ -88,19 +91,23 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, m provid
 	}
 
 	// For now we only have one nodepool, hence we hard-code this to 01
-	nodePoolName := fmt.Sprintf("%s-nodepool-01", cluster.Name())
-	nodePool := []*godo.KubernetesNodePoolCreateRequest{
-		{
-			Name:      nodePoolName,
-			Size:      chooseSize(c.NodeGroups[0].NodeClaim), // TODO
-			Count:     int(c.NodeGroups[0].Instances),
+	nodePools := []*godo.KubernetesNodePoolCreateRequest{}
+	for i, ng := range c.NodeGroups {
+		// This starts from 01, and always is padded to two digits like the cluster number
+		idx := config.ClusterNumber(i + 1)
+		nodePoolName := fmt.Sprintf("%s-nodepool-%s", cluster.Name(), idx)
+		nodePools = append(nodePools, &godo.KubernetesNodePoolCreateRequest{
+			Name: nodePoolName,
+
+			Size:      chooseSize(ng.NodeClaim),
+			Count:     int(ng.Instances),
 			AutoScale: false,
 			Tags: []string{
 				WorkshopctlTag,
 				nodePoolName,
 				cluster.Name(),
 			},
-		},
+		})
 	}
 
 	req := &godo.KubernetesClusterCreateRequest{
@@ -111,7 +118,7 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, m provid
 			WorkshopctlTag,
 			cluster.Name(),
 		},
-		NodePools:   nodePool,
+		NodePools:   nodePools,
 		AutoUpgrade: false,
 	}
 
