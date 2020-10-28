@@ -8,6 +8,7 @@ import (
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/config/keyval"
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
+	"github.com/cloud-native-nordics/workshopctl/pkg/gotk"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
@@ -35,12 +36,18 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 
 	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
+		// TODO: Instead, make provisionCluster idempotent
 		logger.Info("Provisioning the Kubernetes cluster")
 		if err := provisionCluster(ctx, clusterInfo, p); err != nil {
 			return err
 		}
 	} else {
 		logger.Infof("Assuming cluster is already provisioned, as %q exists...", kubeconfigPath)
+	}
+
+	// Setup GitOps sync
+	if err := gotk.SetupGitOps(ctx, clusterInfo); err != nil {
+		return err
 	}
 
 	localKubectl := func() *kubectlExecer {
@@ -69,9 +76,9 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 		return err
 	}
 
-	requiredAddons := []string{"core-workshop-infra"} // TODO: GOTK
+	requiredAddons := []string{"core-workshop-infra"}
 	for _, addon := range requiredAddons {
-		addonPath := fmt.Sprintf("clusters/%s/%s.yaml", clusterInfo.Index, addon)
+		addonPath := fmt.Sprintf("%s/%s/%s.yaml", constants.ClustersDir, clusterInfo.Index, addon)
 		logger.Infof("Applying addon %s", addonPath)
 		if _, err := localKubectl().WithArgs("apply").WithFile(addonPath).Run(); err != nil {
 			return err

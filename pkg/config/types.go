@@ -215,8 +215,12 @@ func (n ClusterNumber) Domain(rootDomain string) string {
 	return fmt.Sprintf("%s.%s", n.Subdomain(), rootDomain)
 }
 
+func (n ClusterNumber) ClusterDir() string {
+	return filepath.Join(constants.ClustersDir, n.String())
+}
+
 func (n ClusterNumber) KubeConfigPath() string {
-	return filepath.Join(constants.ClustersDir, n.String(), constants.KubeconfigFile)
+	return filepath.Join(n.ClusterDir(), constants.KubeconfigFile)
 }
 
 func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Context, *ClusterInfo) error) error {
