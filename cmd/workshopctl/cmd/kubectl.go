@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
@@ -45,11 +46,14 @@ func RunKubectl(kf *KubectlFlags, args []string) error {
 		return fmt.Errorf("--cluster is required")
 	}
 
-	ctx := util.NewContext(kf.DryRun)
+	ctx := util.NewContext(false)
 
 	cn := kf.Cluster.Number()
 	kubeconfigPath := filepath.Join(kf.RootDir, constants.ClustersDir, cn.String(), constants.KubeconfigFile)
 	kubeconfigEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfigPath)
-	_, _, err := util.Command(ctx, "kubectl", args...).WithEnv(kubeconfigEnv).Run()
+	_, _, err := util.Command(ctx, "kubectl", args...).
+		WithEnv(kubeconfigEnv).
+		WithStdio(nil, os.Stdout, os.Stderr). // TODO: Maybe an extra flag to enable stdin?
+		Run()
 	return err
 }
