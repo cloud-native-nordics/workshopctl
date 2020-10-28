@@ -23,7 +23,7 @@ func NewWaiter(ctx context.Context, info *config.ClusterInfo) *Waiter {
 }
 
 func (w *Waiter) kubectl() *kubectlExecer {
-	return kubectl(w.ctx, w.KubeConfigPath()).WithNS(constants.WorkshopctlNamespace)
+	return kubectl(w.ctx, w.Index.KubeConfigPath()).WithNS(constants.WorkshopctlNamespace)
 }
 
 type waitFn func() error

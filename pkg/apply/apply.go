@@ -33,7 +33,7 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 	// been successfully provisioned (maybe in the workshopctl ConfigMap?). With this feature
 	// it's possible at this stage to skip doing the same things over and over again => idempotent
 
-	kubeconfigPath := clusterInfo.KubeConfigPath()
+	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
 		logger.Info("Provisioning the Kubernetes cluster")
 		if err := provisionCluster(ctx, clusterInfo, p); err != nil {
@@ -98,7 +98,7 @@ func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p pr
 	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name(), cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
 	util.DebugObject(ctx, "Returned cluster object", *cluster)
 
-	kubeconfigPath := clusterInfo.KubeConfigPath()
+	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
 	logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
 	return util.WriteFile(ctx, kubeconfigPath, cluster.Status.KubeconfigBytes)
 }

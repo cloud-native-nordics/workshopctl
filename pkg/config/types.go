@@ -187,14 +187,6 @@ func NewClusterInfo(cfg *Config, i ClusterNumber) *ClusterInfo {
 	return &ClusterInfo{cfg, i, pass}
 }
 
-func (c *ClusterInfo) ClusterDir() string {
-	return filepath.Join(constants.ClustersDir, c.Index.String())
-}
-
-func (c *ClusterInfo) KubeConfigPath() string {
-	return filepath.Join(c.ClusterDir(), constants.KubeconfigFile)
-}
-
 func (c *ClusterInfo) Domain() string {
 	return c.Index.Domain(c.RootDomain)
 }
@@ -221,6 +213,10 @@ func (n ClusterNumber) Subdomain() string {
 
 func (n ClusterNumber) Domain(rootDomain string) string {
 	return fmt.Sprintf("%s.%s", n.Subdomain(), rootDomain)
+}
+
+func (n ClusterNumber) KubeConfigPath() string {
+	return filepath.Join(constants.ClustersDir, n.String(), constants.KubeconfigFile)
 }
 
 func ForCluster(ctx context.Context, n uint16, cfg *Config, fn func(context.Context, *ClusterInfo) error) error {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -49,7 +48,7 @@ func RunKubectl(kf *KubectlFlags, args []string) error {
 	ctx := util.NewContext(false)
 
 	cn := kf.Cluster.Number()
-	kubeconfigPath := filepath.Join(kf.RootDir, constants.ClustersDir, cn.String(), constants.KubeconfigFile)
+	kubeconfigPath := filepath.Join(kf.RootDir, cn.KubeConfigPath())
 	kubeconfigEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfigPath)
 	_, _, err := util.Command(ctx, "kubectl", args...).
 		WithEnv(kubeconfigEnv).
