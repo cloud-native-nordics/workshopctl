@@ -65,6 +65,9 @@ type DNSProviderFactory interface {
 type DNSProvider interface {
 	ChartProcessors() []gen.Processor
 	ValuesProcessors() []gen.Processor
+	// EnsureZone ensures that the root domain zone is registered with the DNS provider
+	// This is run at apply-time before the individual cluster processors
+	EnsureZone(ctx context.Context) error
 	// CleanupRecords deletes records associated with a cluster
 	CleanupRecords(ctx context.Context, m ClusterMeta) error
 }

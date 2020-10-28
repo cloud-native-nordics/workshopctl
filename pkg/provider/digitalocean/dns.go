@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
@@ -35,6 +36,38 @@ func (do *DigitalOceanDNSProvider) ChartProcessors() []gen.Processor {
 
 func (do *DigitalOceanDNSProvider) ValuesProcessors() []gen.Processor {
 	return nil
+}
+
+func (do *DigitalOceanDNSProvider) EnsureZone(ctx context.Context) error {
+	logger := util.Logger(ctx)
+
+	// First, check if it exists
+	logger.Debugf("Ensuring domain %s is managed by DigitalOcean DNS", do.rootDomain)
+	domain, resp, err := do.c.Domains.Get(ctx, do.rootDomain)
+	if err == nil {
+		util.DebugObject(ctx, "Domain already exists", domain)
+		return nil
+	} else if resp.StatusCode != http.StatusNotFound { // err != nil and status code is not 404
+		return err
+	} // else resp.StatusCode == http.StatusNotFound
+	return do.createDomain(ctx, do.rootDomain, logger)
+}
+
+func (do *DigitalOceanDNSProvider) createDomain(ctx context.Context, rootDomain string, logger *logrus.Entry) error {
+	if do.dryRun {
+		logger.Infof("Would create domain %s in DigitalOcean DNS", rootDomain)
+		return nil
+	}
+	// Create the domain
+	logger.Infof("Creating domain %s in DigitalOcean DNS", rootDomain)
+	domain, _, err := do.c.Domains.Create(ctx, &godo.DomainCreateRequest{
+		Name: do.rootDomain,
+	})
+	if err != nil {
+		return err
+	}
+	util.DebugObject(ctx, "Created domain", domain)
+	return err
 }
 
 func (do *DigitalOceanDNSProvider) CleanupRecords(ctx context.Context, m provider.ClusterMeta) error {

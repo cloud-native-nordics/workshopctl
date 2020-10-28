@@ -16,15 +16,25 @@ import (
 
 func Apply(ctx context.Context, cfg *config.Config) error {
 	// TODO: Enforce that gen is up-to-date
-	// TODO: Verify that the NS records are properly pointing to the DNS provider's nameservers
 
-	cp, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider)
+	cloudP, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider)
 	if err != nil {
 		return err
 	}
 
+	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, cfg.DNSProvider, cfg.RootDomain)
+	if err != nil {
+		return err
+	}
+
+	// Make sure the domain zone is created before starting to reconcile the clusters
+	// Otherwise external-dns nor Traefik will work.
+	if err := dnsP.EnsureZone(ctx); err != nil {
+		return err
+	}
+
 	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
-		return ApplyCluster(clusterCtx, clusterInfo, cp)
+		return ApplyCluster(clusterCtx, clusterInfo, cloudP)
 	})
 }
 
