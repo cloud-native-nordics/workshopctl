@@ -11,11 +11,11 @@ const (
 	// Under ./{ChartsDir}/<chart>/
 	// Helm-specific
 	TemplatesDir = "templates"
-	ValuesYAML   = "values.yaml"
 	ChartYAML    = "Chart.yaml"
 	// workshopctl "extensions"
-	NamespaceFile     = "namespace"
-	ExternalChartFile = "external-chart"
+	NamespaceFile      = "namespace"
+	ExternalChartFile  = "external-chart"
+	ValuesOverrideYAML = "values-override.yaml"
 	// jq "extensions"
 	PipeJS   = "pipe.js"
 	ValuesJS = "values.js"
@@ -39,10 +39,12 @@ var KnownChartFiles = []string{
 	// Helm "classic" files
 	TemplatesDir,
 	ChartYAML,
+	// TODO: Include the "classic", non-templated, base values.yaml here too.
 
 	// workshopctl-specific files
 	NamespaceFile,
 	ExternalChartFile,
+	ValuesOverrideYAML,
 	// jq-specific files
 	PipeJS,
 	ValuesJS,

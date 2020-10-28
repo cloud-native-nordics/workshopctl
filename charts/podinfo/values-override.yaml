@@ -11,4 +11,4 @@ image:
 ingress:
   enabled: true
   hosts:
-  - "{{ .workshopctl.CLUSTER_DOMAIN }}"
+  - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"

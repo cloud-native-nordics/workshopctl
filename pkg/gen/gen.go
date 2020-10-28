@@ -146,7 +146,7 @@ func downloadChart(ctx context.Context, externalChartFile string) error {
 }
 
 func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.ClusterInfo, valuesProcessors, chartProcessors []Processor) error {
-	logger := util.Logger(ctx)
+	logger := util.Logger(ctx).WithField("chart", cd.Name)
 
 	namespace := constants.DefaultNamespace
 	if nsFile, ok := cd.CopiedFiles[constants.NamespaceFile]; ok {
@@ -175,15 +175,15 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 
 	p := keyval.FromClusterInfo(clusterInfo)
 
-	// If there is a ./charts/<chart>/values.yaml file, use that as the "beginning" of the processor chain
+	// If there is a ./.cache/<chart>/values-override.yaml file, use that as the "beginning" of the processor chain
 	var initialData []byte
-	valuesYAMLOverride := util.JoinPaths(ctx, constants.ChartsDir, cd.Name, constants.ValuesYAML)
-	if util.FileExists(valuesYAMLOverride) {
+	if valuesOverrideYAML, ok := cd.CopiedFiles[constants.ValuesOverrideYAML]; ok {
 		var err error
-		initialData, err = ioutil.ReadFile(valuesYAMLOverride)
+		initialData, err = ioutil.ReadFile(valuesOverrideYAML)
 		if err != nil {
 			return err
 		}
+		logger.Tracef("Read file %q, got contents: %s", valuesOverrideYAML, initialData)
 	}
 
 	input := bytes.NewBuffer(initialData)
@@ -194,7 +194,6 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 			logger.Errorf("error: %v, output: %s", err, output.String())
 			return err
 		}
-		logger.Tracef("After processor %d: %s", i, output.String())
 		// Reset the input array, that is no longer needed
 		input.Reset()
 		// Now we can set the output pointer to be the next input, and the reset output to be an
@@ -203,6 +202,7 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 		input = output
 		output = tmp
 	}
+	logger.Tracef("After all processing: %s", output.String())
 
 	outputFile := util.JoinPaths(ctx, constants.ClustersDir, clusterInfo.Index.String(), fmt.Sprintf("%s.yaml", cd.Name))
 	// TODO: Make "fake" os.MkdirAll and os.Create util calls that can be used for dry-running
