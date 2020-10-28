@@ -13,3 +13,6 @@ ingress:
   path: /
   hosts:
   - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"
+  annotations:
+    # Force a short TTL so that DNS record changes can propagate faster
+    external-dns.alpha.kubernetes.io/ttl: "30s"

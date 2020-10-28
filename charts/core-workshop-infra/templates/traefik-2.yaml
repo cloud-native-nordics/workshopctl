@@ -169,6 +169,9 @@ metadata:
   labels:
     app: traefik
   annotations:
+    # Force a short TTL so that DNS record changes can propagate faster
+    external-dns.alpha.kubernetes.io/ttl: "30s"
+    # Create a DNS record for the traefik API & dashboard
     external-dns.alpha.kubernetes.io/hostname: "traefik.{{ .Values.workshopctl.CLUSTER_DOMAIN }}"
 spec:
   ports:
