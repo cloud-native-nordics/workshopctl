@@ -118,7 +118,7 @@ spec:
     targetPort: 8080
     name: http
 ---
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: code-server
@@ -126,10 +126,13 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - http:
+  - host: "{{ .Values.workshopctl.CLUSTER_DOMAIN }}"
+    http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: code-server
-          servicePort: 80
-    host: "{{ .Values.workshopctl.CLUSTER_DOMAIN }}"
+          service:
+            name: code-server
+            port:
+              number: 80

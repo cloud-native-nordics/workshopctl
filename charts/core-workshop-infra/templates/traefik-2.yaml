@@ -182,7 +182,7 @@ spec:
     app: traefik
   type: LoadBalancer
 ---
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata: 
   name: traefik

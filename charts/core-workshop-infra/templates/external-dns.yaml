@@ -58,7 +58,7 @@ spec:
         # Watch Ingress objects and create DNS records correspondingly 
         - --source=ingress
         # Makes ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
-        - --domain-filter={{ .Values.workshopctl.CLUSTER_DOMAIN }}.
+        - --domain-filter={{ .Values.workshopctl.ROOT_DOMAIN }}.
         - --provider={{ .Values.workshopctl.EXTERNAL_DNS_PROVIDER }}
         # Prevents ExternalDNS from deleting any records, omit to enable full synchronization
         - --policy=upsert-only
