@@ -16,6 +16,7 @@ import (
 
 func Apply(ctx context.Context, cfg *config.Config) error {
 	// TODO: Enforce that gen is up-to-date
+	// TODO: Verify that the NS records are properly pointing to the DNS provider's nameservers
 
 	cp, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider)
 	if err != nil {
@@ -93,8 +94,10 @@ func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p pr
 	logger := util.Logger(ctx)
 
 	logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
-	cluster, err := p.CreateCluster(ctx, provider.ClusterSpec{
+	cluster, err := p.CreateCluster(ctx, provider.ClusterMeta{
 		Index:      clusterInfo.Index,
+		NamePrefix: clusterInfo.Name,
+	}, provider.ClusterSpec{
 		Version:    "latest",
 		NodeGroups: clusterInfo.NodeGroups,
 	})
@@ -102,7 +105,7 @@ func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p pr
 		return fmt.Errorf("encountered an error while creating clusters: %v", err)
 	}
 
-	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name(), cluster.Status.ProvisionTime())
+	logger.Infof("Provisioning of cluster %s took %s.", cluster.Name(), cluster.Status.ProvisionTime())
 	util.DebugObject(ctx, "Returned cluster object", cluster)
 
 	kubeconfigPath := clusterInfo.Index.KubeConfigPath()

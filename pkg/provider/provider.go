@@ -12,18 +12,23 @@ import (
 )
 
 type Cluster struct {
+	ClusterMeta
 	Spec   ClusterSpec
 	Status ClusterStatus
 }
 
-type ClusterSpec struct {
+type ClusterMeta struct {
+	NamePrefix string
 	Index      config.ClusterNumber
-	Version    string
-	NodeGroups []config.NodeGroup
 }
 
-func (s ClusterSpec) Name() string {
-	return constants.ClusterName(s.Index)
+func (m ClusterMeta) Name() string {
+	return constants.ClusterName(m.NamePrefix, m.Index)
+}
+
+type ClusterSpec struct {
+	Version    string
+	NodeGroups []config.NodeGroup
 }
 
 type ClusterStatus struct {
@@ -48,9 +53,9 @@ type CloudProviderFactory interface {
 
 type CloudProvider interface {
 	// CreateCluster creates a cluster. This call is _blocking_ until the cluster is properly provisioned
-	CreateCluster(ctx context.Context, c ClusterSpec) (*Cluster, error)
+	CreateCluster(ctx context.Context, m ClusterMeta, c ClusterSpec) (*Cluster, error)
 	// DeleteCluster deletes a cluster and its associated load balancers
-	DeleteCluster(ctx context.Context, index config.ClusterNumber) error
+	DeleteCluster(ctx context.Context, m ClusterMeta) error
 }
 
 type DNSProviderFactory interface {
@@ -61,5 +66,5 @@ type DNSProvider interface {
 	ChartProcessors() []gen.Processor
 	ValuesProcessors() []gen.Processor
 	// CleanupRecords deletes records associated with a cluster
-	CleanupRecords(ctx context.Context, index config.ClusterNumber) error
+	CleanupRecords(ctx context.Context, m ClusterMeta) error
 }

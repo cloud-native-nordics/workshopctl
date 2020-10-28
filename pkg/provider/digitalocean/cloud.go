@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
-	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	"github.com/digitalocean/godo"
@@ -76,19 +75,20 @@ func chooseSize(c config.NodeClaim) string {
 	return "s-2vcpu-4gb"
 }
 
-func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, c provider.ClusterSpec) (*provider.Cluster, error) {
+func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, m provider.ClusterMeta, c provider.ClusterSpec) (*provider.Cluster, error) {
 	logger := util.Logger(ctx)
 
 	start := time.Now().UTC()
-	i := c.Index
 	cluster := &provider.Cluster{
-		Spec: c,
+		ClusterMeta: m,
+		Spec:        c,
 		Status: provider.ClusterStatus{
 			ProvisionStart: &start,
 		},
 	}
 
-	nodePoolName := fmt.Sprintf("workshopctl-nodepool-%s", i)
+	// For now we only have one nodepool, hence we hard-code this to 01
+	nodePoolName := fmt.Sprintf("%s-nodepool-01", cluster.Name())
 	nodePool := []*godo.KubernetesNodePoolCreateRequest{
 		{
 			Name:      nodePoolName,
@@ -98,16 +98,18 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, c provid
 			Tags: []string{
 				WorkshopctlTag,
 				nodePoolName,
+				cluster.Name(),
 			},
 		},
 	}
 
 	req := &godo.KubernetesClusterCreateRequest{
-		Name:        cluster.Spec.Name(),
+		Name:        cluster.Name(),
 		RegionSlug:  do.region,
 		VersionSlug: cluster.Spec.Version, // TODO: Resolve c.Version correctly
 		Tags: []string{
 			WorkshopctlTag,
+			cluster.Name(),
 		},
 		NodePools:   nodePool,
 		AutoUpgrade: false,
@@ -123,15 +125,15 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, c provid
 		log.Debugf("Would send this request to DO: %s", string(b))
 	}
 	// TODO: Rate limiting
-	doCluster, err := do.getClusterByName(ctx, cluster.Spec.Name())
+	doCluster, err := do.getClusterByName(ctx, cluster.Name())
 	if err == nil {
 		// If the cluster was found, just note it's ID
 		cluster.Status.ID = doCluster.ID
-		logger.Infof("Found existing cluster with name %q and ID %q", cluster.Spec.Name(), cluster.Status.ID)
+		logger.Infof("Found existing cluster with name %q and ID %q", cluster.Name(), cluster.Status.ID)
 
 	} else if errors.Is(err, clusterNotFound) {
 		// If the cluster wasn't found, create it
-		logger.Infof("Creating new cluster with name %s", cluster.Spec.Name())
+		logger.Infof("Creating new cluster with name %s", cluster.Name())
 		doCluster, _, err = do.c.Kubernetes.Create(ctx, req)
 		if err != nil {
 			return nil, err
@@ -182,10 +184,9 @@ func (do *DigitalOceanCloudProvider) CreateCluster(ctx context.Context, c provid
 	return cluster, nil
 }
 
-func (do *DigitalOceanCloudProvider) DeleteCluster(ctx context.Context, index config.ClusterNumber) error {
-	name := constants.ClusterName(index)
+func (do *DigitalOceanCloudProvider) DeleteCluster(ctx context.Context, m provider.ClusterMeta) error {
 
-	cluster, err := do.getClusterByName(ctx, name)
+	cluster, err := do.getClusterByName(ctx, m.Name())
 	if err != nil {
 		return err
 	}

@@ -19,14 +19,19 @@ import (
 )
 
 type Config struct {
+	// The prefix to use for all identifying names/tags/etc.
+	// This allows an user to have multiple workshop environments at once in the same provider
+	Name string `json:"name"`
+
 	// CloudProvider specifies what cloud provider to use and how to authenticate with it.
 	CloudProvider Provider `json:"cloudProvider"`
 	// DNSProvider specifies what dns provider to use and how to authenticate with it.
 	// If nil, CloudProvider is used.
 	DNSProvider *Provider `json:"dnsProvider"`
 
-	RootDomain    string                        `json:"rootDomain"`
-	Clusters      uint16                        `json:"clusters"`
+	RootDomain string `json:"rootDomain"`
+	Clusters   uint16 `json:"clusters"`
+	// TODO: Add git provider tokens
 	GitRepo       string                        `json:"gitRepo"`
 	GitRepoStruct gitprovider.UserRepositoryRef `json:"-"`
 
@@ -54,7 +59,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("root domain must not be empty")
 	}
 	if c.LetsEncryptEmail == "" {
-		return fmt.Errorf("lets encrypt email must not be empty")
+		return fmt.Errorf("Let's Encrypt email must not be empty")
+	}
+	if c.Name == "" {
+		return fmt.Errorf("name must not be empty")
 	}
 	return nil
 }

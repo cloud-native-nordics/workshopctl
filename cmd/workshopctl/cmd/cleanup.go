@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
@@ -55,8 +56,14 @@ func RunCleanup(cf *CleanupFlags) error {
 	}
 
 	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
+		// TODO: Create helper func for this
+		clusterMeta := provider.ClusterMeta{
+			NamePrefix: clusterInfo.Name,
+			Index:      clusterInfo.Index,
+		}
+
 		// Delete the Kubernetes cluster
-		if err := cloudP.DeleteCluster(clusterCtx, clusterInfo.Index); err != nil {
+		if err := cloudP.DeleteCluster(clusterCtx, clusterMeta); err != nil {
 			return err
 		}
 		// Delete the KubeConfig file
@@ -65,6 +72,6 @@ func RunCleanup(cf *CleanupFlags) error {
 			return err
 		}
 		// Delete the DNS records
-		return dnsP.CleanupRecords(clusterCtx, clusterInfo.Index)
+		return dnsP.CleanupRecords(clusterCtx, clusterMeta)
 	})
 }

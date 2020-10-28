@@ -37,10 +37,10 @@ func (do *DigitalOceanDNSProvider) ValuesProcessors() []gen.Processor {
 	return nil
 }
 
-func (do *DigitalOceanDNSProvider) CleanupRecords(ctx context.Context, index config.ClusterNumber) error {
+func (do *DigitalOceanDNSProvider) CleanupRecords(ctx context.Context, m provider.ClusterMeta) error {
 	logger := util.Logger(ctx)
 
-	subdomain := index.Subdomain()
+	subdomain := m.Index.Subdomain()
 	logger.Debugf("Asking for records for domain %s and sub-domain %s", do.rootDomain, subdomain)
 	// List all records for domain
 	records, _, err := do.c.Domains.Records(ctx, do.rootDomain, &godo.ListOptions{})

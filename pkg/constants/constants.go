@@ -30,8 +30,8 @@ const (
 	WorkshopctlSecret = "workshopctl"
 )
 
-func ClusterName(index fmt.Stringer) string {
-	return fmt.Sprintf("workshopctl-cluster-%s", index)
+func ClusterName(namePrefix string, index fmt.Stringer) string {
+	return fmt.Sprintf("workshopctl-%s-%s", namePrefix, index)
 }
 
 // These files will be copied from ./charts/<chart>/<file> to ./.cache/<chart>/<file>
