@@ -70,8 +70,9 @@ func RunGen(gf *GenFlags) error {
 		return err
 	}
 
-	if !gf.SkipLocalCharts {
-		chartsDir := util.JoinPaths(ctx, constants.ChartsDir)
+	// Only generate "external" charts if the skip flag is false and the charts directory exists
+	chartsDir := util.JoinPaths(ctx, constants.ChartsDir)
+	if exists, _ := util.PathExists(chartsDir); exists && !gf.SkipLocalCharts {
 		chartInfos, err := ioutil.ReadDir(chartsDir)
 		if err != nil {
 			return err

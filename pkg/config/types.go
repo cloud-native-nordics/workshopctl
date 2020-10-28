@@ -80,12 +80,14 @@ func (c *Config) Complete(ctx context.Context) error {
 		c.ClusterLogin.CommonPassword = pass
 	}
 	if c.CloudProvider.ServiceAccountPath != "" {
-		if err := readFileInto(c.CloudProvider.ServiceAccountPath, &c.CloudProvider.InternalToken); err != nil {
+		saPath := util.JoinPaths(ctx, c.CloudProvider.ServiceAccountPath)
+		if err := readFileInto(saPath, &c.CloudProvider.InternalToken); err != nil {
 			return err
 		}
 	}
-	if c.CloudProvider.ServiceAccountPath != "" {
-		if err := readFileInto(c.DNSProvider.ServiceAccountPath, &c.DNSProvider.InternalToken); err != nil {
+	if c.DNSProvider.ServiceAccountPath != "" {
+		saPath := util.JoinPaths(ctx, c.DNSProvider.ServiceAccountPath)
+		if err := readFileInto(saPath, &c.DNSProvider.InternalToken); err != nil {
 			return err
 		}
 	}
