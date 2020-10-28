@@ -41,6 +41,7 @@ func NewWorkshopCtlCommand() *cobra.Command {
 	root.AddCommand(NewGenCommand(rf))
 	root.AddCommand(NewApplyCommand(rf))
 	root.AddCommand(NewKubectlCommand(rf))
+	root.AddCommand(NewCleanupCommand(rf))
 	root.AddCommand(versioncmd.NewCmdVersion(os.Stdout))
 	return root
 }
