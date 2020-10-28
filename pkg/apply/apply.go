@@ -1,125 +1,207 @@
 package apply
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"strings"
 
-	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/provider"
-	"github.com/luxas/workshopctl/pkg/provider/digitalocean"
-	"github.com/luxas/workshopctl/pkg/util"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config/keyval"
+	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
+	"github.com/cloud-native-nordics/workshopctl/pkg/gotk"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider"
+	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 )
 
-var providers = map[string]provider.ProviderFunc{
-	"digitalocean": digitalocean.NewDigitalOceanProvider,
-}
+func Apply(ctx context.Context, cfg *config.Config) error {
+	// TODO: Enforce that gen is up-to-date
 
-func Apply(cfg *config.Config, dryrun bool) error {
-	pFunc, ok := providers[cfg.Provider]
-	if !ok {
-		return fmt.Errorf("Provider %s is not supported!", cfg.Provider)
-	}
-	if len(cfg.ServiceAccountStr) == 0 {
-		return fmt.Errorf("A ServiceAccount token for the provider is required")
-	}
-	cfg.ServiceAccount = config.NewServiceAccount(cfg.ServiceAccountStr)
-	if _, err := cfg.ServiceAccount.Get(); err != nil {
+	cloudP, err := providers.CloudProviders().NewCloudProvider(ctx, &cfg.CloudProvider)
+	if err != nil {
 		return err
 	}
-	p := pFunc(cfg.ServiceAccount, dryrun)
 
-	return config.ForCluster(cfg.Clusters, cfg, func(clusterInfo *config.ClusterInfo) error {
-		return ApplyCluster(clusterInfo, p, dryrun)
+	dnsP, err := providers.DNSProviders().NewDNSProvider(ctx, &cfg.DNSProvider, cfg.RootDomain)
+	if err != nil {
+		return err
+	}
+
+	// Make sure the domain zone is created before starting to reconcile the clusters
+	// Otherwise external-dns nor Traefik will work.
+	if err := dnsP.EnsureZone(ctx); err != nil {
+		return err
+	}
+
+	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
+		return ApplyCluster(clusterCtx, clusterInfo, cloudP)
 	})
 }
 
-func ApplyCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun bool) error {
+func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider) error {
+	logger := util.Logger(ctx)
+
 	// Add some kind of mark at the end of this procedure in the cluster to say that it's
 	// been successfully provisioned (maybe in the workshopctl ConfigMap?). With this feature
 	// it's possible at this stage to skip doing the same things over and over again => idempotent
 
-	kubeconfigPath := clusterInfo.KubeConfigPath()
+	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
 	if !util.FileExists(kubeconfigPath) {
-		if err := provisionCluster(clusterInfo, p, dryrun); err != nil {
+		// TODO: Instead, make provisionCluster idempotent
+		logger.Info("Provisioning the Kubernetes cluster")
+		if err := provisionCluster(ctx, clusterInfo, p); err != nil {
 			return err
 		}
+	} else {
+		logger.Infof("Assuming cluster is already provisioned, as %q exists...", kubeconfigPath)
 	}
 
-	if out, err := execKubectl(kubeconfigPath, "create", "ns", "workshopctl"); err != nil {
-		// Allow/Ignore the AlreadyExists error
-		if !strings.Contains(out, "AlreadyExists") {
-			return err
-		}
+	// Setup GitOps sync
+	if err := gotk.SetupGitOps(ctx, clusterInfo); err != nil {
+		return err
 	}
 
-	// Read the token; it could be from a file, too
-	// Ignore the error here safely as it's been verified already
-	token, _ := clusterInfo.ServiceAccount.Get()
-
-	args := []string{
-		"-n",
-		"workshopctl",
-		"create",
-		"secret",
-		"generic",
-		"workshopctl",
-		fmt.Sprintf("--from-literal=PROVIDER=%s", clusterInfo.Provider),
-		fmt.Sprintf("--from-literal=PROVIDER_SERVICEACCOUNT=%s", token),
-		fmt.Sprintf("--from-literal=GIT_REPO=%s", clusterInfo.GitRepo),
-		fmt.Sprintf("--from-literal=ROOT_DOMAIN=%s", clusterInfo.RootDomain),
-		fmt.Sprintf("--from-literal=CLUSTER_NUMBER=%s", clusterInfo.Index),
-		fmt.Sprintf("--from-literal=VSCODE_PASSWORD=%s", clusterInfo.VSCodePassword),
-	}
-	if out, err := execKubectl(kubeconfigPath, args...); err != nil {
-		// Allow/Ignore the AlreadyExists error
-		if !strings.Contains(out, "AlreadyExists") {
-			return err
-		}
+	localKubectl := func() *kubectlExecer {
+		return kubectl(ctx, kubeconfigPath).WithNS(constants.WorkshopctlNamespace)
 	}
 
-	requiredAddons := []string{"flux", "core-workshop-infra"}
+	logger.Info("Applying workshopctl Namespace")
+	if _, err := kubectl(ctx, kubeconfigPath).
+		Create("namespace", "", constants.WorkshopctlNamespace, true, false).
+		Run(); err != nil {
+		return err
+	}
+
+	paramFlags := []string{}
+	// Append secret parameters
+	parameters := keyval.FromClusterInfo(clusterInfo)
+	for k, v := range parameters.ToMap() {
+		paramFlags = append(paramFlags, fmt.Sprintf("--from-literal=%s=%s", k, v))
+	}
+
+	logger.Info("Applying workshopctl Secret")
+	if _, err := localKubectl().
+		Create("secret", "generic", constants.WorkshopctlSecret, true, true).
+		WithArgs(paramFlags...).
+		Run(); err != nil {
+		return err
+	}
+
+	requiredAddons := []string{"core-workshop-infra"}
 	for _, addon := range requiredAddons {
-		addonPath := fmt.Sprintf("clusters/%s/%s.yaml", clusterInfo.Index, addon)
-		clusterInfo.Logger.Infof("Applying addon %s", addonPath)
-		if _, err := execKubectl(kubeconfigPath, "apply", "-f", addonPath); err != nil {
+		addonPath := fmt.Sprintf("%s/%s/%s.yaml", constants.ClustersDir, clusterInfo.Index, addon)
+		logger.Infof("Applying addon %s", addonPath)
+		if _, err := localKubectl().WithArgs("apply").WithFile(addonPath).Run(); err != nil {
 			return err
 		}
 	}
 
 	// Wait for the cluster to be healthy
-	w := NewWaiter(clusterInfo)
-	return w.WaitForAll()
+	return NewWaiter(ctx, clusterInfo).WaitForAll()
 }
 
-func provisionCluster(clusterInfo *config.ClusterInfo, p provider.Provider, dryrun bool) error {
-	clusterInfo.Logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
-	cluster, err := p.CreateCluster(clusterInfo.Index, provider.ClusterSpec{
-		Name: fmt.Sprintf("workshopctl-cluster-%s", clusterInfo.Index),
-		NodeSize: provider.NodeSize{
-			CPUs: clusterInfo.CPUs,
-			RAM:  clusterInfo.RAM,
-		},
-		NodeCount: clusterInfo.Clusters,
-		Version:   "latest",
+func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provider.CloudProvider) error {
+	logger := util.Logger(ctx)
+
+	logger.Infof("Provisioning cluster %s...", clusterInfo.Index)
+	cluster, err := p.CreateCluster(ctx, provider.ClusterMeta{
+		Index:      clusterInfo.Index,
+		NamePrefix: clusterInfo.Name,
+	}, provider.ClusterSpec{
+		Version:    "latest",
+		NodeGroups: clusterInfo.NodeGroups,
 	})
 	if err != nil {
 		return fmt.Errorf("encountered an error while creating clusters: %v", err)
 	}
-	if dryrun {
-		return nil
-	}
 
-	clusterInfo.Logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name, cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
-	util.DebugObject("Returned cluster object", *cluster)
+	logger.Infof("Provisioning of cluster %s took %s.", cluster.Name(), cluster.Status.ProvisionTime())
+	util.DebugObject(ctx, "Returned cluster object", cluster)
 
-	kubeconfigPath := clusterInfo.KubeConfigPath()
-	clusterInfo.Logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
-	return ioutil.WriteFile(kubeconfigPath, cluster.Status.KubeconfigBytes, 0600)
+	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
+	logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)
+	return util.WriteFile(ctx, kubeconfigPath, cluster.Status.KubeconfigBytes)
 }
 
-func execKubectl(kubeconfigPath string, args ...string) (string, error) {
-	kubectlArgs := []string{"--kubeconfig", kubeconfigPath}
-	kubectlArgs = append(kubectlArgs, args...)
-	return util.ExecuteCommand("kubectl", kubectlArgs...)
+type kubectlExecer struct {
+	ctx            context.Context
+	kubeConfigPath string
+
+	namespace string
+	args      []string
+	files     []string
+
+	err          error
+	ignoreErrors []string
+}
+
+func kubectl(ctx context.Context, kubeConfigPath string) *kubectlExecer {
+	return &kubectlExecer{
+		ctx:            ctx,
+		kubeConfigPath: kubeConfigPath,
+	}
+}
+
+func (e *kubectlExecer) WithNS(ns string) *kubectlExecer {
+	e.namespace = ns
+	return e
+}
+
+func (e *kubectlExecer) WithFile(file string) *kubectlExecer {
+	e.files = append(e.files, file)
+	e.args = append(e.args, []string{"-f", file}...)
+	return e
+}
+
+func (e *kubectlExecer) WithArgs(args ...string) *kubectlExecer {
+	e.args = append(e.args, args...)
+	return e
+}
+
+func (e *kubectlExecer) IgnoreErrors(errStrs ...string) *kubectlExecer {
+	e.ignoreErrors = append(e.ignoreErrors, errStrs...)
+	return e
+}
+
+func (e *kubectlExecer) Create(kind, subkind, name string, ignoreExists, recreate bool) *kubectlExecer {
+	e.args = append(e.args, "create", kind)
+	if len(subkind) > 0 {
+		e.args = append(e.args, subkind)
+	}
+	e.args = append(e.args, name)
+	if ignoreExists {
+		// if we're idempotent, we don't care about "already exists" errors
+		e.IgnoreErrors("AlreadyExists")
+	}
+	if recreate {
+		_, err := kubectl(e.ctx, e.kubeConfigPath).
+			WithNS(e.namespace).
+			WithArgs("delete", kind, name).
+			IgnoreErrors("NotFound"). // Ignore any possible NotFound error here, that is expected
+			Run()
+		if err != nil {
+			e.err = err
+		}
+	}
+	return e
+}
+
+func (e *kubectlExecer) Run() (string, error) {
+	if e.err != nil {
+		return "", e.err
+	}
+
+	kubectlArgs := []string{"--kubeconfig", e.kubeConfigPath}
+	if len(e.namespace) != 0 {
+		kubectlArgs = append(kubectlArgs, []string{"-n", e.namespace}...)
+	}
+	kubectlArgs = append(kubectlArgs, e.args...)
+
+	out, _, err := util.Command(e.ctx, "kubectl", kubectlArgs...).Run()
+	for _, ignored := range e.ignoreErrors {
+		if strings.Contains(out, ignored) {
+			return out, nil
+		}
+	}
+	return out, err
 }

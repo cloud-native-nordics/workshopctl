@@ -2,10 +2,6 @@
 
 Generate a set of manifests based on the configuration
 
-### Synopsis
-
-Generate a set of manifests based on the configuration
-
 ```
 workshopctl gen [flags]
 ```
@@ -13,18 +9,17 @@ workshopctl gen [flags]
 ### Options
 
 ```
-  -c, --clusters uint16      How many clusters to create (default 1)
-  -r, --git-repo string      What git repo to use (default "https://github.com/luxas/workshopctl")
-  -h, --help                 help for gen
-      --provider string      What provider to use (default "digitalocean")
-      --root-dir string      Where the workshopctl directory is (default ".")
-  -d, --root-domain string   What domain to use (default "workshopctl.kubernetesfinland.com")
+  -h, --help                help for gen
+      --skip-local-charts   Don't consider the local directory's charts/ directory
 ```
 
 ### Options inherited from parent commands
 
 ```
+      --config-path string   Where to find the config file (default "workshopctl.yaml")
+      --dry-run              Whether to apply the selected operation, or just print what would happen (to dry-run) (default true)
       --log-level loglevel   Specify the loglevel for the program (default info)
+      --root-dir string      Where the workshopctl directory is. Must be a Git repo. (default ".")
 ```
 
 ### SEE ALSO

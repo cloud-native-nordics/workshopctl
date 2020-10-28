@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workshopctl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: code-server
+  namespace: workshopctl
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: code-server
+  namespace: workshopctl
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: code-server
+  namespace: workshopctl
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: code-server
+  namespace: workshopctl
+  labels:
+    app: code-server
+data:
+  config: |-
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        server: https://kubernetes.default
+      name: default
+    contexts:
+    - context:
+        cluster: default
+        namespace: default
+        user: default
+      name: default
+    current-context: default
+    users:
+    - name: default
+      user:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: code-server
+  namespace: workshopctl
+  labels:
+    app: code-server
+spec:
+  selector:
+    matchLabels:
+      app: code-server
+  template:
+    metadata:
+      labels:
+        app: code-server
+    spec:
+      serviceAccountName: code-server
+      containers:
+      - image: luxas/k8s-web-ide:v2.1.1
+        # TODO: In the future: ghcr.io/cloud-native-nordics/k8s-web-ide:v0.2.0
+        imagePullPolicy: Always
+        name: code-server
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: TUTORIALS_REPO
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: TUTORIALS_REPO
+        - name: TUTORIALS_DIR
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: TUTORIALS_DIR
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workshopctl
+              key: CLUSTER_PASSWORD
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /home/coder/.kube
+        - name: docker
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: kubeconfig
+        configMap:
+          name: code-server
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: code-server
+  namespace: workshopctl
+spec:
+  selector:
+    app: code-server
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: code-server
+  namespace: workshopctl
+  annotations:
+    # Force a short TTL so that DNS record changes can propagate faster
+    external-dns.alpha.kubernetes.io/ttl: "30s"
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: "{{ .Values.workshopctl.CLUSTER_DOMAIN }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: code-server
+            port:
+              number: 80

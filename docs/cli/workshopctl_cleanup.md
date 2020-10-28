@@ -1,16 +1,15 @@
-## workshopctl kubectl
+## workshopctl cleanup
 
-An alias for the kubectl command, pointing the KUBECONFIG to the right place
+Delete the k8s-managed cluster
 
 ```
-workshopctl kubectl [kubectl commands] [flags]
+workshopctl cleanup [flags]
 ```
 
 ### Options
 
 ```
-  -c, --cluster cluster-number   What cluster number you want to connect to. Env var WORKSHOPCTL_CLUSTER can also be used.
-  -h, --help                     help for kubectl
+  -h, --help   help for cleanup
 ```
 
 ### Options inherited from parent commands

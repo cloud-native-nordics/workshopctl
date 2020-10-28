@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns
+  namespace: workshopctl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-dns
+rules:
+- apiGroups: [""]
+  resources: ["services","endpoints","pods"]
+  verbs: ["get","watch","list"]
+- apiGroups: ["extensions","networking.k8s.io"]
+  resources: ["ingresses"] 
+  verbs: ["get","watch","list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-dns-viewer
+  namespace: workshopctl
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-dns
+subjects:
+- kind: ServiceAccount
+  name: external-dns
+  namespace: workshopctl
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: workshopctl
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns
+  template:
+    metadata:
+      labels:
+        app: external-dns
+    spec:
+      serviceAccountName: external-dns
+      containers:
+      - name: external-dns
+        image: k8s.gcr.io/external-dns/external-dns:v0.7.3
+        args:
+        # Watch Ingress and Service objects and create DNS records correspondingly 
+        - --source=ingress
+        - --source=service
+        # Makes ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
+        - --domain-filter={{ .Values.workshopctl.ROOT_DOMAIN }}.
+        - --provider={{ .Values.workshopctl.EXTERNAL_DNS_PROVIDER }}
+        # Prevents ExternalDNS from deleting any records, omit to enable full synchronization
+        - --policy=upsert-only
+        - --registry=txt
+        - --txt-owner-id=workshopctl
+        # Resync often as this is a highly dynamic system
+        - --interval=30s
+        - --log-level=debug
+        # Possibly in the future, add --events support
+        # PROVIDER-CUSTOMIZE: Need to set per-provider ENV VARs here

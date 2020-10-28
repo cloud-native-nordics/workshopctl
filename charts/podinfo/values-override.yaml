@@ -1,0 +1,18 @@
+replicaCount: 3
+logLevel: info
+
+ui:
+  color: "#34577c"
+  message: "Hello world!"
+
+image:
+  tag: 5.0.3
+
+ingress:
+  enabled: true
+  path: /
+  hosts:
+  - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"
+  annotations:
+    # Force a short TTL so that DNS record changes can propagate faster
+    external-dns.alpha.kubernetes.io/ttl: "30s"

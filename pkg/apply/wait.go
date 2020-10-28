@@ -1,51 +1,56 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
 
-	"github.com/luxas/workshopctl/pkg/config"
-	"github.com/luxas/workshopctl/pkg/util"
+	"github.com/cloud-native-nordics/workshopctl/pkg/config"
+	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
+	"github.com/cloud-native-nordics/workshopctl/pkg/util"
+	"github.com/sirupsen/logrus"
 )
 
 type Waiter struct {
 	*config.ClusterInfo
+	ctx    context.Context
+	logger *logrus.Entry
 }
 
-func NewWaiter(info *config.ClusterInfo) *Waiter {
-	return &Waiter{info}
+func NewWaiter(ctx context.Context, info *config.ClusterInfo) *Waiter {
+	return &Waiter{info, ctx, util.Logger(ctx)}
 }
 
-func (w *Waiter) execKubectl(args ...string) (string, error) {
-	return execKubectl(w.KubeConfigPath(), args...)
+func (w *Waiter) kubectl() *kubectlExecer {
+	return kubectl(w.ctx, w.Index.KubeConfigPath()).WithNS(constants.WorkshopctlNamespace)
 }
 
 type waitFn func() error
 
 func (w *Waiter) WaitForAll() error {
 	fns := map[string]waitFn{
-		"deployments to be Ready":        w.WaitForDeployments,
-		"DNS to have propagated":         w.WaitForDNSPropagation,
-		"TLS certs to have been created": w.WaitForTLSSetup,
+		"deployments to be Ready": w.WaitForDeployments,
+		"DNS to have propagated":  w.WaitForDNSPropagation,
+		//"TLS certs to have been created": w.WaitForTLSSetup,
 	}
 	for desc, fn := range fns {
 		msg := fmt.Sprintf("Waiting for %s", desc)
-		w.Logger.Infof("%s...", msg)
+		w.logger.Infof("%s...", msg)
 		before := time.Now().UTC()
 		if err := fn(); err != nil {
 			return fmt.Errorf("%s failed with: %v", msg, err)
 		}
 		after := time.Now().UTC()
-		w.Logger.Infof("%s took %s", msg, after.Sub(before).String())
+		w.logger.Infof("%s took %s", msg, after.Sub(before).String())
 	}
 	return nil
 }
 
 func (w *Waiter) WaitForDeployments() error {
-	return util.Poll(nil, w.Logger, func() (bool, error) {
+	return util.Poll(w.ctx, nil, func() (bool, error) {
 		// Wait 30s using kubectl until the "global" Poll timeout is reached
-		_, err := w.execKubectl("wait", "-n", "workshopctl", "deployment", "--for=condition=Available", "--all", "--timeout=30s")
+		_, err := w.kubectl().WithArgs("wait", "deployment", "--for=condition=Available", "--all", "--timeout=30s").Run()
 		if err != nil {
 			return false, err
 		}
@@ -55,14 +60,14 @@ func (w *Waiter) WaitForDeployments() error {
 
 func (w *Waiter) WaitForDNSPropagation() error {
 	var ip net.IP
-	err := util.Poll(nil, w.Logger, func() (bool, error) {
-		addr, err := w.execKubectl("-n", "workshopctl", "get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`)
+	err := util.Poll(w.ctx, nil, func() (bool, error) {
+		addr, err := w.kubectl().WithArgs("get", "svc", "traefik", "-otemplate", `--template={{ (index .status.loadBalancer.ingress 0).ip }}`).Run()
 		if err != nil {
 			return false, err
 		}
 		ip = net.ParseIP(addr)
 		if ip != nil {
-			w.Logger.Infof("Got LoadBalancer IP %s for Traefik", ip)
+			w.logger.Infof("Got LoadBalancer IP %s for Traefik", ip)
 			return true, nil
 		}
 		return false, fmt.Errorf("no valid IP yet: %q", addr)
@@ -71,8 +76,8 @@ func (w *Waiter) WaitForDNSPropagation() error {
 		return err
 	}
 
-	return util.Poll(nil, w.Logger, func() (bool, error) {
-		prefixes := []string{"", "dashboard"}
+	return util.Poll(w.ctx, nil, func() (bool, error) {
+		prefixes := []string{""} // "dashboard"
 		for _, prefix := range prefixes {
 			domain := w.Domain()
 			if len(prefix) > 0 {
@@ -81,7 +86,7 @@ func (w *Waiter) WaitForDNSPropagation() error {
 			if err := domainMatches(domain, ip); err != nil {
 				return false, err
 			}
-			w.Logger.Infof("%s now resolves to %s, as expected", domain, ip)
+			w.logger.Infof("%s now resolves to %s, as expected", domain, ip)
 		}
 
 		return true, nil
@@ -89,13 +94,22 @@ func (w *Waiter) WaitForDNSPropagation() error {
 }
 
 func domainMatches(domain string, expectedIP net.IP) error {
-	ips, err := net.LookupIP(domain)
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Millisecond * time.Duration(10000),
+			}
+			return d.DialContext(ctx, "udp", "1.1.1.1:53")
+		},
+	}
+	ips, err := r.LookupIPAddr(context.Background(), domain)
 	if err != nil {
 		return fmt.Errorf("Domain lookup error for %q: %v", domain, err)
 	}
 	// look for the right IP
 	for _, addr := range ips {
-		if addr.String() == expectedIP.String() {
+		if addr.IP.String() == expectedIP.String() {
 			return nil
 		}
 	}
@@ -104,17 +118,17 @@ func domainMatches(domain string, expectedIP net.IP) error {
 
 func (w *Waiter) WaitForTLSSetup() error {
 	// TODO: Somehow verify if Traefik already has got the TLS cert
-	_, err := w.execKubectl("-n", "workshopctl", "delete", "pod", "-l=app=traefik")
+	_, err := w.kubectl().WithArgs("delete", "pod", "-l=app=traefik").Run()
 	if err != nil {
 		return err
 	}
-	w.Logger.Infof("Restarted traefik")
+	w.logger.Infof("Restarted traefik")
 	return nil
 	/*
 		TODO: Maybe verify somehow that we can connect to the endpoint(s) correctly.
-		return util.Poll(nil, w.Logger, func() (bool, error) {
+		return util.Poll(nil, w.logger, func() (bool, error) {
 			_, err := http.Get(w.Domain())
 			return (err == nil), err
-		})
+		}, w.dryrun)
 	*/
 }

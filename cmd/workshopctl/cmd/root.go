@@ -1,41 +1,54 @@
 package cmd
 
 import (
-	"io"
 	"os"
 
-	"github.com/luxas/workshopctl/pkg/logs"
-	logflag "github.com/luxas/workshopctl/pkg/logs/flag"
-	versioncmd "github.com/luxas/workshopctl/pkg/version/cmd"
+	"github.com/cloud-native-nordics/workshopctl/pkg/logs"
+	logflag "github.com/cloud-native-nordics/workshopctl/pkg/logs/flag"
+	versioncmd "github.com/cloud-native-nordics/workshopctl/pkg/version/cmd"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-var logLevel = logrus.InfoLevel
+type RootFlags struct {
+	LogLevel   logrus.Level
+	ConfigPath string
+	RootDir    string
+	DryRun     bool
+}
 
-// NewIgniteCommand returns the root command for ignite
-func NewWorkshopCtlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
-
+// NewWorkshopCtlCommand returns the root command for workshopctl
+func NewWorkshopCtlCommand() *cobra.Command {
+	rf := &RootFlags{
+		LogLevel:   logrus.InfoLevel,
+		ConfigPath: "workshopctl.yaml",
+		RootDir:    ".",
+		DryRun:     true,
+	}
 	root := &cobra.Command{
 		Use:   "workshopctl",
 		Short: "workshopctl: easily run Kubernetes workshops",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Set the desired logging level, now that the flags are parsed
-			logs.Logger.SetLevel(logLevel)
+			logs.Logger.SetLevel(rf.LogLevel)
 		},
 	}
 
-	addGlobalFlags(root.PersistentFlags())
+	addGlobalFlags(root.PersistentFlags(), rf)
 
-	root.AddCommand(NewInitCommand(os.Stdin, os.Stdout, os.Stderr))
-	root.AddCommand(NewGenCommand(os.Stdin, os.Stdout, os.Stderr))
-	root.AddCommand(NewApplyCommand(os.Stdin, os.Stdout, os.Stderr))
-	root.AddCommand(NewKubectlCommand(os.Stdin, os.Stdout, os.Stderr))
+	root.AddCommand(NewInitCommand(rf))
+	root.AddCommand(NewGenCommand(rf))
+	root.AddCommand(NewApplyCommand(rf))
+	root.AddCommand(NewKubectlCommand(rf))
+	root.AddCommand(NewCleanupCommand(rf))
 	root.AddCommand(versioncmd.NewCmdVersion(os.Stdout))
 	return root
 }
 
-func addGlobalFlags(fs *pflag.FlagSet) {
-	logflag.LogLevelFlagVar(fs, &logLevel)
+func addGlobalFlags(fs *pflag.FlagSet, rf *RootFlags) {
+	logflag.LogLevelFlagVar(fs, &rf.LogLevel)
+	fs.StringVar(&rf.RootDir, "root-dir", rf.RootDir, "Where the workshopctl directory is. Must be a Git repo.")
+	fs.StringVar(&rf.ConfigPath, "config-path", rf.ConfigPath, "Where to find the config file")
+	fs.BoolVar(&rf.DryRun, "dry-run", rf.DryRun, "Whether to apply the selected operation, or just print what would happen (to dry-run)")
 }

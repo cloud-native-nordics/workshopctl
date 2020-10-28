@@ -1,0 +1,6 @@
+{
+    "yaml.schemas": {
+        "kubernetes": "*.yaml"
+    },
+    "workbench.colorTheme": "Default Dark+"
+}
