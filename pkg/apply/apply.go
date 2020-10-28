@@ -102,8 +102,8 @@ func provisionCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p pr
 		return fmt.Errorf("encountered an error while creating clusters: %v", err)
 	}
 
-	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name(), cluster.Status.ProvisionDone.Sub(*cluster.Status.ProvisionStart))
-	util.DebugObject(ctx, "Returned cluster object", *cluster)
+	logger.Infof("Provisioning of cluster %s took %s.", cluster.Spec.Name(), cluster.Status.ProvisionTime())
+	util.DebugObject(ctx, "Returned cluster object", cluster)
 
 	kubeconfigPath := clusterInfo.Index.KubeConfigPath()
 	logger.Infof("Writing KubeConfig file to %q", kubeconfigPath)

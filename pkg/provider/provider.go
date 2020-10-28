@@ -35,6 +35,13 @@ type ClusterStatus struct {
 	KubeconfigBytes []byte
 }
 
+func (s ClusterStatus) ProvisionTime() time.Duration {
+	if s.ProvisionStart == nil || s.ProvisionDone == nil {
+		return 0
+	}
+	return s.ProvisionDone.Sub(*s.ProvisionStart)
+}
+
 type CloudProviderFactory interface {
 	NewCloudProvider(ctx context.Context, p *config.Provider) (CloudProvider, error)
 }
