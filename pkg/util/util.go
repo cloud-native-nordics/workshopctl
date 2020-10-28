@@ -87,15 +87,19 @@ func Poll(ctx context.Context, d *time.Duration, fn wait.ConditionFunc) error {
 	}, ctxWithDeadline.Done())
 }
 
-func DebugObject(msg string, obj interface{}) {
-	if log.IsLevelEnabled(log.DebugLevel) {
-		b, err := json.Marshal(obj)
-		if err != nil {
-			log.Errorf("DebugObject failed with %v", err)
-			return
-		}
-		log.Debugf("%s: %s", msg, string(b))
+func DebugObject(ctx context.Context, msg string, obj interface{}) {
+	// If debug logging isn't enabled, just exit
+	if !log.IsLevelEnabled(log.DebugLevel) {
+		return
 	}
+
+	logger := Logger(ctx)
+	b, err := json.Marshal(obj)
+	if err != nil {
+		logger.Errorf("DebugObject failed with %v", err)
+		return
+	}
+	logger.Debugf("%s: %s", msg, string(b))
 }
 
 // RandomSHA returns a hex-encoded string from {byteLen} random bytes.
@@ -243,7 +247,7 @@ func (e *ExecUtil) WithEnv(envVars ...string) *ExecUtil {
 }
 
 func (e *ExecUtil) Run() (output string, exitCode int, cmdErr error) {
-	cmdArgs := e.cmd.Path + " " + strings.Join(e.cmd.Args, " ")
+	cmdArgs := strings.Join(e.cmd.Args, " ")
 
 	// Don't do this if we're dry-running
 	if IsDryRun(e.ctx) {
