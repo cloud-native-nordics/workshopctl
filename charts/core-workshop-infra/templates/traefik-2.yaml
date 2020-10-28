@@ -176,9 +176,6 @@ spec:
     port: 80
   - name: https
     port: 443
-  # Allows access to the Traefik UI. For demo usage only.
-  - name: admin
-    port: 8080
   selector:
     app: traefik
   type: LoadBalancer
