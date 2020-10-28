@@ -123,7 +123,7 @@ kind: Ingress
 metadata:
   name: code-server
   namespace: workshopctl
-  annotation:
+  annotations:
     # Force a short TTL so that DNS record changes can propagate faster
     external-dns.alpha.kubernetes.io/ttl: "30s"
 spec:
