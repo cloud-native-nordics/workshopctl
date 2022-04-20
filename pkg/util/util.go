@@ -228,10 +228,11 @@ func ShellCommand(ctx context.Context, format string, args ...interface{}) *Exec
 }
 
 type ExecUtil struct {
-	cmd    *exec.Cmd
-	outBuf *bytes.Buffer
-	ctx    context.Context
-	logger *logrus.Entry
+	cmd       *exec.Cmd
+	outBuf    *bytes.Buffer
+	ctx       context.Context
+	logger    *logrus.Entry
+	dryRunOut string
 }
 
 func (e *ExecUtil) Cmd() *exec.Cmd {
@@ -266,13 +267,18 @@ func (e *ExecUtil) WithEnv(envVars ...string) *ExecUtil {
 	return e
 }
 
+func (e *ExecUtil) WithDryRunContent(out string) *ExecUtil {
+	e.dryRunOut = out
+	return e
+}
+
 func (e *ExecUtil) Run() (output string, exitCode int, cmdErr error) {
 	cmdArgs := strings.Join(e.cmd.Args, " ")
 
 	// Don't do this if we're dry-running
 	if IsDryRun(e.ctx) {
 		e.logger.Infof("Would execute command %q", cmdArgs)
-		return "", 0, nil
+		return e.dryRunOut, 0, nil
 	}
 
 	// Always capture stdout output to e.outBuf

@@ -17,6 +17,7 @@ import (
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
+	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 	"sigs.k8s.io/yaml"
 )
 
@@ -40,6 +41,7 @@ func SetupInternalChartCache(ctx context.Context) ([]*ChartData, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Now that the internal files are extracted to disk,
 	// process them exactly as normal "external" charts
 	chartCache := make([]*ChartData, 0, len(charts))
@@ -169,6 +171,7 @@ func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.Clust
 	processorChain = append(processorChain, valuesProcessors...)
 	processorChain = append(processorChain, []Processor{
 		&helmTemplateProcessor{namespace},
+		&nsProcessor{namespace},
 		&unescapeGoTmpls{},
 	}...)
 	processorChain = append(processorChain, chartProcessors...)
@@ -273,4 +276,19 @@ func (pr *unescapeGoTmpls) Process(ctx context.Context, _ *ChartData, _ *keyval.
 
 	_, err = w.Write(b)
 	return err
+}
+
+type nsProcessor struct {
+	ns string
+}
+
+func (pr *nsProcessor) Process(ctx context.Context, cd *ChartData, p *keyval.Parameters, r io.Reader, w io.Writer) error {
+	return util.KYAMLFilter(r, w, util.KYAMLFilterFunc(
+		func(node *kyaml.RNode) (*kyaml.RNode, error) {
+			return node, node.PipeE(
+				kyaml.LookupCreate(kyaml.MappingNode, "metadata"),
+				kyaml.FieldMatcher{Name: "namespace", Create: kyaml.NewScalarRNode(pr.ns)},
+			)
+		},
+	))
 }

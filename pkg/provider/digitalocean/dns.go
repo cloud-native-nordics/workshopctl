@@ -18,6 +18,11 @@ import (
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
+const expectedNSDomains = `ns3.digitalocean.com.
+ns1.digitalocean.com.
+ns2.digitalocean.com.
+`
+
 func NewDigitalOceanDNSProvider(ctx context.Context, p *config.Provider, rootDomain string) (provider.DNSProvider, error) {
 	return &DigitalOceanDNSProvider{
 		doCommon:   initCommon(ctx, p),
@@ -40,6 +45,19 @@ func (do *DigitalOceanDNSProvider) ValuesProcessors() []gen.Processor {
 
 func (do *DigitalOceanDNSProvider) EnsureZone(ctx context.Context) error {
 	logger := util.Logger(ctx)
+
+	out, _, err := util.ShellCommand(ctx, "dig +short NS %s", do.rootDomain).
+		WithDryRunContent(expectedNSDomains).
+		Run()
+	if err != nil {
+		return err
+	}
+	for i := 1; i <= 3; i++ {
+		domain := fmt.Sprintf("ns%d.digitalocean.com.", i)
+		if !strings.Contains(out, domain) {
+			return fmt.Errorf("%s doesn't have an NS record to %s", do.rootDomain, domain)
+		}
+	}
 
 	// First, check if it exists
 	logger.Debugf("Ensuring domain %s is managed by DigitalOcean DNS", do.rootDomain)

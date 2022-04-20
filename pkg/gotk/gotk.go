@@ -26,7 +26,7 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 
 	// Make sure we have all prereqs
 	kubeConfigArg := "--kubeconfig=" + info.Index.KubeConfigPath()
-	_, _, err := util.Command(ctx,
+	/*_, _, err := util.Command(ctx,
 		"gotk",
 		kubeConfigArg,
 		"check",
@@ -34,7 +34,7 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 	).Run()
 	if err != nil {
 		return err
-	}
+	}*/
 
 	var provider string
 	switch info.Git.RepoStruct.Domain {
@@ -54,8 +54,8 @@ func SetupGitOps(ctx context.Context, info *config.ClusterInfo) error {
 	// TODO: That doesn't work in current gotk, rework that maybe upstream too?
 	// This command installs the toolkit into the target cluster, and starts reconciling our
 	// given cluster directory for changes.
-	_, _, err = util.Command(ctx,
-		"gotk",
+	_, _, err := util.Command(ctx,
+		"flux",
 		kubeConfigArg,
 		"bootstrap",
 		provider,

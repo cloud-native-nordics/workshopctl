@@ -56,6 +56,13 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 		logger.Infof("Assuming cluster is already provisioned, as %q exists...", kubeconfigPath)
 	}
 
+	logger.Info("Applying workshopctl Namespace")
+	if _, err := kubectl(ctx, kubeconfigPath).
+		Create("namespace", "", constants.WorkshopctlNamespace, true, false).
+		Run(); err != nil {
+		return err
+	}
+
 	// Setup GitOps sync
 	if err := gotk.SetupGitOps(ctx, clusterInfo); err != nil {
 		return err
@@ -63,13 +70,6 @@ func ApplyCluster(ctx context.Context, clusterInfo *config.ClusterInfo, p provid
 
 	localKubectl := func() *kubectlExecer {
 		return kubectl(ctx, kubeconfigPath).WithNS(constants.WorkshopctlNamespace)
-	}
-
-	logger.Info("Applying workshopctl Namespace")
-	if _, err := kubectl(ctx, kubeconfigPath).
-		Create("namespace", "", constants.WorkshopctlNamespace, true, false).
-		Run(); err != nil {
-		return err
 	}
 
 	paramFlags := []string{}
