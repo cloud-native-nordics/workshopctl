@@ -1,6 +1,6 @@
 module github.com/cloud-native-nordics/workshopctl
 
-go 1.15
+go 1.16
 
 require (
 	github.com/digitalocean/godo v1.48.0

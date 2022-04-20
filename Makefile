@@ -1,5 +1,5 @@
 PROJECT=github.com/cloud-native-nordics/workshopctl
-GO_VERSION=1.15.3
+GO_VERSION=1.16
 BINARIES=workshopctl
 CACHE_DIR = $(shell pwd)/bin/cache
 
