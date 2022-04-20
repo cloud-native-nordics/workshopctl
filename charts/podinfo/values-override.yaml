@@ -9,10 +9,11 @@ image:
   tag: 5.0.3
 
 ingress:
-  enabled: true
-  path: /
-  hosts:
-  - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"
-  annotations:
+  # TODO: Need to upgrade the Ingress version from v1beta1
+  enabled: false
+#  path: /
+#  hosts:
+#  - "podinfo.{{ .workshopctl.CLUSTER_DOMAIN }}"
+#  annotations:
     # Force a short TTL so that DNS record changes can propagate faster
-    external-dns.alpha.kubernetes.io/ttl: "30s"
+#    external-dns.alpha.kubernetes.io/ttl: "30s"

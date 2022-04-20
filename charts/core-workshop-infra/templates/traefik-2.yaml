@@ -15,7 +15,6 @@ rules:
     - list
     - watch
 - apiGroups:
-    - extensions
     - networking.k8s.io
   resources:
     - ingresses
@@ -25,7 +24,7 @@ rules:
     - list
     - watch
 - apiGroups:
-    - extensions
+    - networking.k8s.io
   resources:
     - ingresses/status
   verbs:
@@ -97,7 +96,7 @@ spec:
       serviceAccountName: traefik
       containers:
       - name: traefik
-        image: traefik:v2.3
+        image: traefik:v2.6.3
         args:
         - --api=true
         - --metrics.prometheus=true
