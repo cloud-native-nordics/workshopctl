@@ -143,8 +143,19 @@ func downloadChart(ctx context.Context, externalChartFile string) error {
 	log.Infof("Found external chart to download %q", externalChart)
 	// This extracts the chart to e.g. .cache/kubernetes-dashboard/{Chart.yaml,values.yaml,templates}
 	cacheDir := util.JoinPaths(ctx, constants.CacheDir)
-	_, _, err = util.Command(ctx, "helm", "fetch", externalChart, "--untar", "--untardir", cacheDir).Run()
-	return err
+	tmpCacheDir := util.JoinPaths(ctx, cacheDir, "tmp")
+
+	if exists, _ := util.PathExists(tmpCacheDir); exists {
+		if err := os.RemoveAll(tmpCacheDir); err != nil {
+			return err
+		}
+	}
+
+	_, _, err = util.Command(ctx, "helm", "fetch", externalChart, "--untar", "--untardir", tmpCacheDir).Run()
+	if err != nil {
+		return err
+	}
+	return util.Copy(tmpCacheDir, cacheDir)
 }
 
 func GenerateChart(ctx context.Context, cd *ChartData, clusterInfo *config.ClusterInfo, valuesProcessors, chartProcessors []Processor) error {
