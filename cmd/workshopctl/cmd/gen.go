@@ -7,6 +7,7 @@ import (
 	"github.com/cloud-native-nordics/workshopctl/pkg/config"
 	"github.com/cloud-native-nordics/workshopctl/pkg/constants"
 	"github.com/cloud-native-nordics/workshopctl/pkg/gen"
+	"github.com/cloud-native-nordics/workshopctl/pkg/git"
 	"github.com/cloud-native-nordics/workshopctl/pkg/provider/providers"
 	"github.com/cloud-native-nordics/workshopctl/pkg/util"
 	log "github.com/sirupsen/logrus"
@@ -93,7 +94,7 @@ func RunGen(gf *GenFlags) error {
 		return err
 	}
 
-	return config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
+	err = config.ForCluster(ctx, cfg.Clusters, cfg, func(clusterCtx context.Context, clusterInfo *config.ClusterInfo) error {
 		for _, chart := range charts {
 			logger := util.Logger(ctx)
 			logger.Infof("Generating chart %q...", chart.Name)
@@ -103,4 +104,9 @@ func RunGen(gf *GenFlags) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	return git.PushManifests(ctx, cfg)
 }
