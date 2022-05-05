@@ -18,34 +18,6 @@ metadata:
   name: code-server
   namespace: workshopctl
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: code-server
-  namespace: workshopctl
-  labels:
-    app: code-server
-data:
-  config: |-
-    apiVersion: v1
-    kind: Config
-    clusters:
-    - cluster:
-        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        server: https://kubernetes.default
-      name: default
-    contexts:
-    - context:
-        cluster: default
-        namespace: default
-        user: default
-      name: default
-    current-context: default
-    users:
-    - name: default
-      user:
-        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,8 +36,8 @@ spec:
     spec:
       serviceAccountName: code-server
       containers:
-      - image: luxas/k8s-web-ide:v2.1.1
-        # TODO: In the future: ghcr.io/cloud-native-nordics/k8s-web-ide:v0.2.0
+      - image: luxas/k8s-web-ide:v4.3.0
+        # TODO: In the future: ghcr.io/cloud-native-nordics/k8s-web-ide:v4.3.0
         imagePullPolicy: Always
         name: code-server
         ports:
@@ -87,18 +59,6 @@ spec:
             secretKeyRef:
               name: workshopctl
               key: CLUSTER_PASSWORD
-        volumeMounts:
-        - name: kubeconfig
-          mountPath: /home/coder/.kube
-        - name: docker
-          mountPath: /var/run/docker.sock
-      volumes:
-      - name: kubeconfig
-        configMap:
-          name: code-server
-      - name: docker
-        hostPath:
-          path: /var/run/docker.sock
 ---
 apiVersion: v1
 kind: Service

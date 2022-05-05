@@ -2,5 +2,6 @@
     "yaml.schemas": {
         "kubernetes": "*.yaml"
     },
-    "workbench.colorTheme": "Default Dark+"
+    "workbench.colorTheme": "Default Dark+",
+    "redhat.telemetry.enabled": false
 }

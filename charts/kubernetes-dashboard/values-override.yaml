@@ -1,0 +1,13 @@
+metricsScraper:
+  enabled: true
+
+metrics-server:
+  enabled: true
+
+ingress:
+  enabled: true
+  annotations:
+    external-dns.alpha.kubernetes.io/ttl: "30s"
+  className: traefik 
+  hosts:
+  - "dashboard.{{ .workshopctl.CLUSTER_DOMAIN }}"

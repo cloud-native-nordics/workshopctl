@@ -13,7 +13,5 @@ if [[ ${TUTORIALS_REPO} != "" ]]; then
     DEFAULT_DIRECTORY="/home/coder/project"
 fi
 
-sudo chown $(id -u):$(id -g) /var/run/docker.sock
-
 # By default run behind a Let's Encrypt proxy, so expose this traffic using insecure HTTP
 exec code-server --host=0.0.0.0 --auth=password --disable-telemetry ${DEFAULT_DIRECTORY}
